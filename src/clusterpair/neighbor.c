@@ -626,9 +626,9 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
             // Fill neighbor list with dummy values to fit vector width
             if (CLUSTER_N < VECTOR_WIDTH) {
                 while (n % (VECTOR_WIDTH / CLUSTER_N)) {
-		    // Last cluster is always a dummy cluster
-		    neighs(neighbor->neighbors, ci, n, nbM, nbN) = atom->dummy_cj;
-		    neighs(neighbor->neighbors_imask, ci, n, nbM, nbN) = 0;
+                    // Last cluster is always a dummy cluster
+                    neighs(neighbor->neighbors, ci, n, nbM, nbN) = atom->dummy_cj;
+                    neighs(neighbor->neighbors_imask, ci, n, nbM, nbN) = 0;
                     n++;
                 }
             }

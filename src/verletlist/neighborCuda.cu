@@ -168,7 +168,6 @@ __global__ void compute_neighborhood(DeviceAtom a,
     DeviceAtom* atom         = &a;
     DeviceNeighbor* neighbor = &neigh;
 
-    int* neighptr = &neighs(neighbor->neighbors, i, 0, nlocal, maxneighs);
     int n         = 0;
     MD_FLOAT xtmp = atom_x(i);
     MD_FLOAT ytmp = atom_y(i);

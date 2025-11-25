@@ -205,7 +205,6 @@ __global__ void computeForceLJCudaFullNeigh(
     int ci_cj0      = CJ0_FROM_CI(ci);
     MD_FLOAT* ci_x  = &cuda_cl_x[CI_VECTOR_BASE_INDEX(ci)];
     MD_FLOAT* ci_f  = &cuda_cl_f[CI_VECTOR3_BASE_INDEX(ci)];
-    int* neighs     = &cuda_neighs[ci * maxneighs];
     int numneighs   = cuda_numneigh[ci];
     MD_FLOAT xtmp   = ci_x[CL_X_INDEX(cii)];
     MD_FLOAT ytmp   = ci_x[CL_Y_INDEX(cii)];
@@ -220,7 +219,7 @@ __global__ void computeForceLJCudaFullNeigh(
 #endif
 
     for (int k = 0; k < numneighs; k++) {
-        int cj          = neighs[k];
+        int cj          = neighs(cuda_neighs, ci, k, Nclusters_local, maxneighs);
         int cj_vec_base = CJ_VECTOR_BASE_INDEX(cj);
         MD_FLOAT* cj_x  = &cuda_cl_x[cj_vec_base];
 
@@ -318,7 +317,6 @@ __global__ void computeForceLJCudaHalfNeigh(
     int ci_cj0      = CJ0_FROM_CI(ci);
     MD_FLOAT* ci_x  = &cuda_cl_x[CI_VECTOR_BASE_INDEX(ci)];
     MD_FLOAT* ci_f  = &cuda_cl_f[CI_VECTOR3_BASE_INDEX(ci)];
-    int* neighs     = &cuda_neighs[ci * maxneighs];
     int numneighs   = cuda_numneigh[ci];
     MD_FLOAT xtmp   = ci_x[CL_X_INDEX(cii)];
     MD_FLOAT ytmp   = ci_x[CL_Y_INDEX(cii)];
@@ -333,7 +331,7 @@ __global__ void computeForceLJCudaHalfNeigh(
 #endif
 
     for (int k = 0; k < numneighs; k++) {
-        int cj          = neighs[k];
+        int cj          = neighs(cuda_neighs, ci, k, Nclusters_local, maxneighs);
         MD_FLOAT* cj_x  = &cuda_cl_x[CJ_VECTOR_BASE_INDEX(cj)];
         MD_FLOAT* cj_f  = &cuda_cl_f[CJ_VECTOR3_BASE_INDEX(cj)];
 

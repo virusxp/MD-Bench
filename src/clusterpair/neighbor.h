@@ -28,6 +28,14 @@
 #define NBNXN_INTERACTION_MASK_DIAG_J8_0 0xf0f8fcfeU
 #define NBNXN_INTERACTION_MASK_DIAG_J8_1 0x0080c0e0U
 
+#ifdef NBLIST_AOS
+#define NBLIST_DATA_LAYOUT "AoS"
+#define neighs(nblist,i,j,M,N) nblist[(i) * N + (j)]
+#else
+#define NBLIST_DATA_LAYOUT "SoA"
+#define neighs(nblist,i,j,M,N) nblist[(j) * M + (i)]
+#endif
+
 typedef struct {
     int every;
     int ncalls;

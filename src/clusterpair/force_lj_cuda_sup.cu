@@ -151,7 +151,7 @@ __global__ void computeForceLJCudaSup_warp(MD_FLOAT* cuda_cl_x,
     __syncthreads();
 
     for(int k = 0; k < cuda_numneigh[sci]; k++) {
-        int cj          = cuda_neighs[sci * maxneighs + k];
+        int cj          = neighs(cuda_neighs, sci, k, Nclusters_local, maxneighs);
         MD_FLOAT* cj_x  = &cuda_cl_x[CJ_VECTOR_BASE_INDEX(cj)];
         MD_FLOAT* cj_f  = &cuda_cl_f[CJ_VECTOR3_BASE_INDEX(cj)];
         MD_FLOAT xjtmp  = cj_x[CL_X_INDEX(cjj)];

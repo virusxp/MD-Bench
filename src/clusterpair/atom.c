@@ -732,7 +732,7 @@ void growAtom(Atom* atom) {
     int nold = atom->Nmax;
     atom->Nmax += DELTA;
 
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
     atom->x = (MD_FLOAT*)reallocate(atom->x,
         ALIGNMENT,
         atom->Nmax * sizeof(MD_FLOAT) * 3,
@@ -817,7 +817,7 @@ void growClusters(Atom* atom, int super_clustering) {
 /* MPI added*/
 
 void freeAtom(Atom* atom) {
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
     free(atom->x);
     atom->x = NULL;
 #else

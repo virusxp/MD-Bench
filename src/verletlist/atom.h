@@ -66,7 +66,7 @@ void unpackReverse(Atom*, int, int*, MD_FLOAT*);
 void pbc(Atom*);
 void copy(Atom*, int, int);
 
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
 #define POS_DATA_LAYOUT "AoS"
 #define atom_x(i)       atom->x[(i)*3 + 0]
 #define atom_y(i)       atom->x[(i)*3 + 1]

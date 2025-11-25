@@ -58,7 +58,7 @@ __global__ void computeForceLJCudaFullNeigh(DeviceAtom a,
 #endif
 
     for (int k = 0; k < numneighs; k++) {
-        int j         = neigh_neighbors[Nlocal * k + i];
+        int j         = neighs(neigh_neighbors, i, k, Nlocal, neigh_maxneighs);
         MD_FLOAT delx = xtmp - atom_x(j);
         MD_FLOAT dely = ytmp - atom_y(j);
         MD_FLOAT delz = ztmp - atom_z(j);
@@ -118,7 +118,7 @@ __global__ void computeForceLJCudaHalfNeigh(DeviceAtom a,
 #endif
 
     for (int k = 0; k < numneighs; k++) {
-        int j         = neigh_neighbors[Nlocal * k + i];
+        int j         = neighs(neigh_neighbors, i, k, Nlocal, neigh_maxneighs);
         MD_FLOAT delx = xtmp - atom_x(j);
         MD_FLOAT dely = ytmp - atom_y(j);
         MD_FLOAT delz = ztmp - atom_z(j);
@@ -250,7 +250,7 @@ double computeForceLJCUDA(Parameter* param, Atom* atom, Neighbor* neighbor, Stat
     LIKWID_MARKER_START("force");
 
     if (neighbor->half_neigh) {
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
         memsetGPU(atom->d_atom.fx, 0, sizeof(MD_FLOAT) * Nmax * 3);
 #else
         memsetGPU(atom->d_atom.fx, 0, sizeof(MD_FLOAT) * Nmax);

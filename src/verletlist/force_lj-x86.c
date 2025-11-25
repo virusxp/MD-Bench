@@ -21,6 +21,10 @@
 double computeForceLJFullNeigh_simd(
     Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
 {
+#ifdef NBLIST_SOA
+    fprintf(stderr, "Error: SIMD kernel not implemented when NBLIST_DATA_LAYOUT is SOA!");
+    exit(-1);
+#endif
     int Nlocal = atom->Nlocal;
     int* neighs;
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
@@ -68,7 +72,7 @@ double computeForceLJFullNeigh_simd(
                     simd_i32_add(simd_i32_broadcast(k), simd_i32_seq()),
                     numneighs_vec);
                 MD_SIMD_INT j            = simd_i32_mask_load(&neighs[k], mask_numneighs);
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
                 MD_SIMD_INT j3           = simd_i32_add(simd_i32_add(j, j), j); // j * 3
                 MD_SIMD_FLOAT delx       = xtmp - simd_real_gather(j3,
                                                 &(atom->x[0]),

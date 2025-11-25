@@ -17,8 +17,11 @@ ENABLE_MPI ?= false
 # SP or DP
 DATA_TYPE ?= SP
 # AOS or SOA
-DATA_LAYOUT ?= AOS
-
+ATOM_DATA_LAYOUT ?= AOS
+# Neighbor-lists data layout (auto/AOS/SOA)
+# AOS="atom"-major, SOA="neighbor"-major
+# For CPU, auto=AOS; For GPU, auto=SOA
+NBLIST_DATA_LAYOUT ?= auto
 # Debug
 DEBUG ?= false
 
@@ -41,8 +44,7 @@ ENABLE_OMP_SIMD ?= true
 # Cluster pair kernel variant (auto/4xN/2xNN/gpusimple)
 CLUSTER_PAIR_KERNEL ?= auto
 # AOS3 or AOS4 or SOA
-#CLSUTER_DATA_LAYOUT
-DATA_LAYOUT_SUPERCLUSTER ?= AOS3
+SUPERCLUSTER_DATA_LAYOUT ?= AOS3
 # Use scalar version (and pray for the compiler to vectorize the code properly)
 USE_SCALAR_KERNEL ?= false
 # Use reference version (for correction and metrics purposes)
@@ -62,30 +64,33 @@ OPTIONS =  -DALIGNMENT=64
 # DO NOT EDIT BELOW !!!
 ################################################################
 DEFINES =
+NBLIST_DATA_LAYOUT_DEFAULT=AOS
 
-ifeq ($(strip $(TOOLCHAIN)), HIPCC)
+ifeq ($(strip $(TOOLCHAIN)),HIPCC)
 	VECTOR_WIDTH=1
-	SIMD = NONE
-	USE_REFERENCE_KERNEL = true
+	SIMD=NONE
+	USE_REFERENCE_KERNEL=true
+	NBLIST_DATA_LAYOUT_DEFAULT=SOA
 endif
-ifeq ($(strip $(TOOLCHAIN)), NVCC)
+ifeq ($(strip $(TOOLCHAIN)),NVCC)
 	VECTOR_WIDTH=1
-	SIMD = NONE
-	USE_REFERENCE_KERNEL = true
+	SIMD=NONE
+	USE_REFERENCE_KERNEL=true
+	NBLIST_DATA_LAYOUT_DEFAULT=SOA
 endif
-ifeq ($(strip $(SIMD)), NONE)
+ifeq ($(strip $(SIMD)),NONE)
 	VECTOR_WIDTH=1
-	USE_REFERENCE_KERNEL = true
+	USE_REFERENCE_KERNEL=true
 else
 ifeq ($(strip $(ISA)),ARM)
-    ifeq ($(strip $(SIMD)), NEON)
+    ifeq ($(strip $(SIMD)),NEON)
         __ISA_NEON__=true
         __SIMD_WIDTH_DBL__=2
-    else ifeq ($(strip $(SIMD)), SVE)
+    else ifeq ($(strip $(SIMD)),SVE)
         __ISA_SVE__=true
 		# needs further specification
         __SIMD_WIDTH_DBL__=2
-    else ifeq ($(strip $(SIMD)), SVE2)
+    else ifeq ($(strip $(SIMD)),SVE2)
         __ISA_SVE__=true
         __ISA_SVE2__=true
         # needs further specification
@@ -93,46 +98,54 @@ ifeq ($(strip $(ISA)),ARM)
     endif
 else
 # X86
-    ifeq ($(strip $(SIMD)), SSE)
+    ifeq ($(strip $(SIMD)),SSE)
         __ISA_SSE__=true
         __SIMD_WIDTH_DBL__=2
-    else ifeq ($(strip $(SIMD)), AVX)
+    else ifeq ($(strip $(SIMD)),AVX)
         __ISA_AVX__=true
         __SIMD_WIDTH_DBL__=4
-    else ifeq ($(strip $(SIMD)), AVX_FMA)
+    else ifeq ($(strip $(SIMD)),AVX_FMA)
         __ISA_AVX__=true
         __ISA_AVX_FMA__=true
         __SIMD_WIDTH_DBL__=4
-    else ifeq ($(strip $(SIMD)), AVX2)
+    else ifeq ($(strip $(SIMD)),AVX2)
         #__SIMD_KERNEL__=true
         __ISA_AVX2__=true
         __SIMD_WIDTH_DBL__=4
-    else ifeq ($(strip $(SIMD)), AVX512)
+    else ifeq ($(strip $(SIMD)),AVX512)
         __ISA_AVX512__=true
         __SIMD_WIDTH_DBL__=8
-        ifeq ($(strip $(DATA_TYPE)), DP)
+        ifeq ($(strip $(DATA_TYPE)),DP)
             __SIMD_KERNEL__=true
         endif
     endif
 endif
 
-# SIMD width is specified in double-precision, hence it may
-# need to be adjusted for single-precision
+# SIMD width is specified in double-precision, hence it needs
+# to be adjusted for single-precision cases
 ifeq ($(strip $(DATA_TYPE)), SP)
     VECTOR_WIDTH=$(shell echo $$(( $(__SIMD_WIDTH_DBL__) * 2 )))
 else
     VECTOR_WIDTH=$(__SIMD_WIDTH_DBL__)
 endif
 endif
-ifeq ($(strip $(DATA_LAYOUT)),AOS)
-    DEFINES +=  -DAOS
+ifeq ($(strip $(ATOM_DATA_LAYOUT)),AOS)
+    DEFINES +=  -DPOSITION_AOS
 endif
-ifeq ($(strip $(DATA_LAYOUT_SUPERCLUSTER)),AOS3)
-    DEFINES +=  -DAOS3_SUP
-else ifeq ($(strip $(DATA_LAYOUT_SUPERCLUSTER)),AOS4)
-    DEFINES +=  -DAOS4_SUP
+ifeq ($(strip $(NBLIST_DATA_LAYOUT)),auto)
+    NBLIST_DATA_LAYOUT=$(NBLIST_DATA_LAYOUT_DEFAULT)
+endif
+ifeq ($(strip $(NBLIST_DATA_LAYOUT)),AOS)
+    DEFINES +=  -DNBLIST_AOS
 else
-    DEFINES +=  -DSOA_SUP
+    DEFINES +=  -DNBLIST_SOA
+endif
+ifeq ($(strip $(SUPERCLUSTER_DATA_LAYOUT)),AOS3)
+    DEFINES +=  -DPOSITION_AOS3_SUP
+else ifeq ($(strip $(SUPERCLUSTER_DATA_LAYOUT)),AOS4)
+    DEFINES +=  -DPOSITION_AOS4_SUP
+else
+    DEFINES +=  -DPOSITION_SOA_SUP
 endif
 ifeq ($(strip $(DATA_TYPE)),SP)
     DEFINES +=  -DPRECISION=1

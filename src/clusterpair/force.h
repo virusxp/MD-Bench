@@ -134,7 +134,7 @@ extern double computeForceLJCUDA(Parameter*, Atom*, Neighbor*, Stats*);
 #define SCLUSTER_SIZE            (SCLUSTER_SIZE_X * SCLUSTER_SIZE_Y * SCLUSTER_SIZE_Z)
 #define SCI_BASE_INDEX(a, b)     ((a) * CLUSTER_N * SCLUSTER_SIZE * (b))
 #define SCI_FROM_CJ(a)           ((a) / SCLUSTER_SIZE)
-#ifdef AOS4_SUP
+#ifdef POSITION_AOS4_SUP
 #define ATOM_DIM 4
 #else
 #define ATOM_DIM 3

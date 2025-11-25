@@ -23,8 +23,8 @@ void computeForceGhostShell(Parameter*, Atom*, Neighbor*);
 double computeForceLJRef(Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
 {
     DEBUG_MESSAGE("computeForceLJ begin\n");
-    int Nlocal = atom->Nlocal;
-    int* neighs;
+    const int nbM = atom->Nclusters_local;
+    const int nbN = neighbor->maxneighs;
 #ifdef ONE_ATOM_TYPE
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
     MD_FLOAT sigma6     = param->sigma6;
@@ -64,7 +64,6 @@ double computeForceLJRef(Parameter* param, Atom* atom, Neighbor* neighbor, Stats
             int ci_vec_base = CI_VECTOR3_BASE_INDEX(ci);
             MD_FLOAT* ci_x  = &atom->cl_x[ci_vec_base];
             MD_FLOAT* ci_f  = &atom->cl_f[ci_vec_base];
-            neighs          = &neighbor->neighbors[ci * neighbor->maxneighs];
             int numneighs   = neighbor->numneigh[ci];
 
 #ifndef ONE_ATOM_TYPE
@@ -73,7 +72,7 @@ double computeForceLJRef(Parameter* param, Atom* atom, Neighbor* neighbor, Stats
 #endif
 
             for (int k = 0; k < numneighs; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 int any         = 0;
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
@@ -180,8 +179,8 @@ double computeForceLJ2xnnHalfNeigh(
     Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
 {
     DEBUG_MESSAGE("computeForceLJ_2xnn begin\n");
-    int Nlocal = atom->Nlocal;
-    int* neighs;
+    const int nbM = atom->Nclusters_local;
+    const int nbN = neighbor->maxneighs;
     MD_FLOAT cutforcesq          = param->cutforce * param->cutforce;
     MD_FLOAT sigma6              = param->sigma6;
     MD_FLOAT epsilon             = param->epsilon;
@@ -228,7 +227,6 @@ double computeForceLJ2xnnHalfNeigh(
             int ci_vec_base      = CI_VECTOR3_BASE_INDEX(ci);
             MD_FLOAT* ci_x       = &atom->cl_x[ci_vec_base];
             MD_FLOAT* ci_f       = &atom->cl_f[ci_vec_base];
-            neighs               = &neighbor->neighbors[ci * neighbor->maxneighs];
             int numneighs        = neighbor->numneigh[ci];
             int numneighs_masked = neighbor->numneigh_masked[ci];
 
@@ -253,7 +251,7 @@ double computeForceLJ2xnnHalfNeigh(
 #endif
 
             for (int k = 0; k < numneighs_masked; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 // int imask = neighs_imask[k];
                 MD_FLOAT* cj_x = &atom->cl_x[cj_vec_base];
@@ -388,7 +386,7 @@ double computeForceLJ2xnnHalfNeigh(
             }
 
             for (int k = numneighs_masked; k < numneighs; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
                 MD_FLOAT* cj_f  = &atom->cl_f[cj_vec_base];
@@ -518,8 +516,8 @@ double computeForceLJ2xnnFullNeigh(
     Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
 {
     DEBUG_MESSAGE("computeForceLJ_2xnn begin\n");
-    int Nlocal = atom->Nlocal;
-    int* neighs;
+    const int nbM                = atom->Nclusters_local;
+    const int nbN                = neighbor->maxneighs;
     MD_FLOAT cutforcesq          = param->cutforce * param->cutforce;
     MD_FLOAT sigma6              = param->sigma6;
     MD_FLOAT epsilon             = param->epsilon;
@@ -557,9 +555,8 @@ double computeForceLJ2xnnFullNeigh(
             int ci_vec_base      = CI_VECTOR3_BASE_INDEX(ci);
             MD_FLOAT* ci_x       = &atom->cl_x[ci_vec_base];
             MD_FLOAT* ci_f       = &atom->cl_f[ci_vec_base];
-            neighs               = &neighbor->neighbors[ci * neighbor->maxneighs];
-            int numneighs        = neighbor->numneigh[ci];
-            int numneighs_masked = neighbor->numneigh_masked[ci];
+            const int numneighs        = neighbor->numneigh[ci];
+            const int numneighs_masked = neighbor->numneigh_masked[ci];
 
             MD_SIMD_FLOAT xi0_tmp = simd_real_load_h_dual(&ci_x[CL_X_INDEX_3D(0)]);
             MD_SIMD_FLOAT xi2_tmp = simd_real_load_h_dual(&ci_x[CL_X_INDEX_3D(2)]);
@@ -581,7 +578,7 @@ double computeForceLJ2xnnFullNeigh(
 #endif
 
             for (int k = 0; k < numneighs_masked; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
                 unsigned int mask0, mask1, mask2, mask3;
@@ -702,7 +699,7 @@ double computeForceLJ2xnnFullNeigh(
             }
 
             for (int k = numneighs_masked; k < numneighs; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
 
@@ -822,8 +819,8 @@ double computeForceLJ4xnHalfNeigh(
     Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
 {
     DEBUG_MESSAGE("computeForceLJ_4xn begin\n");
-    int Nlocal = atom->Nlocal;
-    int* neighs;
+    const int nbM                = atom->Nclusters_local;
+    const int nbN                = neighbor->maxneighs;
     MD_FLOAT cutforcesq          = param->cutforce * param->cutforce;
     MD_FLOAT sigma6              = param->sigma6;
     MD_FLOAT epsilon             = param->epsilon;
@@ -871,7 +868,6 @@ double computeForceLJ4xnHalfNeigh(
             int ci_vec_base      = CI_VECTOR3_BASE_INDEX(ci);
             MD_FLOAT* ci_x       = &atom->cl_x[ci_vec_base];
             MD_FLOAT* ci_f       = &atom->cl_f[ci_vec_base];
-            neighs               = &neighbor->neighbors[ci * neighbor->maxneighs];
             int numneighs        = neighbor->numneigh[ci];
             int numneighs_masked = neighbor->numneigh_masked[ci];
 
@@ -910,7 +906,7 @@ double computeForceLJ4xnHalfNeigh(
 #endif
 
             for (int k = 0; k < numneighs_masked; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
                 MD_FLOAT* cj_f  = &atom->cl_f[cj_vec_base];
@@ -1135,7 +1131,7 @@ double computeForceLJ4xnHalfNeigh(
             }
 
             for (int k = numneighs_masked; k < numneighs; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
                 MD_FLOAT* cj_f  = &atom->cl_f[cj_vec_base];
@@ -1349,8 +1345,8 @@ double computeForceLJ4xnFullNeigh(
     Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
 {
     DEBUG_MESSAGE("computeForceLJ_4xn begin\n");
-    int Nlocal = atom->Nlocal;
-    int* neighs;
+    const int nbM                = atom->Nclusters_local;
+    const int nbN                = neighbor->maxneighs;
     MD_FLOAT cutforcesq          = param->cutforce * param->cutforce;
     MD_FLOAT sigma6              = param->sigma6;
     MD_FLOAT epsilon             = param->epsilon;
@@ -1388,7 +1384,6 @@ double computeForceLJ4xnFullNeigh(
             int ci_vec_base      = CI_VECTOR3_BASE_INDEX(ci);
             MD_FLOAT* ci_x       = &atom->cl_x[ci_vec_base];
             MD_FLOAT* ci_f       = &atom->cl_f[ci_vec_base];
-            neighs               = &neighbor->neighbors[ci * neighbor->maxneighs];
             int numneighs        = neighbor->numneigh[ci];
             int numneighs_masked = neighbor->numneigh_masked[ci];
 
@@ -1427,7 +1422,7 @@ double computeForceLJ4xnFullNeigh(
 #endif
 
             for (int k = 0; k < numneighs_masked; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
 
@@ -1642,7 +1637,7 @@ double computeForceLJ4xnFullNeigh(
             }
 
             for (int k = numneighs_masked; k < numneighs; k++) {
-                int cj          = neighs[k];
+                const int cj    = neighs(neighbor->neighbors, ci, k, nbM, nbN);
                 int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
                 MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
 
@@ -1842,13 +1837,11 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor)
     DEBUG_MESSAGE("computeForceLJ begin\n");
 
     int Nshell = neighbor->Nshell;
-    int* neighs;
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
     MD_FLOAT sigma6     = param->sigma6;
     MD_FLOAT epsilon    = param->epsilon;
 
     for (int ci = 0; ci < Nshell; ci++) {
-        neighs          = &neighbor->neighshell[ci * neighbor->maxneighs];
         int numneighs   = neighbor->numNeighShell[ci];
         int cs          = neighbor->listshell[ci];
         int cs_vec_base = CJ_VECTOR3_BASE_INDEX(cs);
@@ -1856,7 +1849,7 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor)
         MD_FLOAT* cs_f  = &atom->cl_f[cs_vec_base];
 
         for (int k = 0; k < numneighs; k++) {
-            int cj          = neighs[k];
+            const int cj    = neighs(neighbor->neighshell, ci, k, Nshell, neighbor->maxneighs);
             int cj_vec_base = CJ_VECTOR3_BASE_INDEX(cj);
             MD_FLOAT* cj_x  = &atom->cl_x[cj_vec_base];
             MD_FLOAT* cj_f  = &atom->cl_f[cj_vec_base];

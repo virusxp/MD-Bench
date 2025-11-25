@@ -168,7 +168,7 @@ __global__ void compute_neighborhood(DeviceAtom a,
     DeviceAtom* atom         = &a;
     DeviceNeighbor* neighbor = &neigh;
 
-    int* neighptr = &(neighbor->neighbors[i]);
+    int* neighptr = &neighs(neighbor->neighbors, i, 0, nlocal, maxneighs);
     int n         = 0;
     MD_FLOAT xtmp = atom_x(i);
     MD_FLOAT ytmp = atom_y(i);
@@ -200,9 +200,8 @@ __global__ void compute_neighborhood(DeviceAtom a,
 #endif
 
             if (rsq <= cutoff) {
-                int idx       = nlocal * n;
-                neighptr[idx] = j;
-                n += 1;
+                neighs(neighbor->neighbors, i, n, nlocal, maxneigh) = j;
+                n++;
             }
         }
     }

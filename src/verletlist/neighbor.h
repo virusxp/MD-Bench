@@ -13,6 +13,14 @@
 #ifndef __NEIGHBOR_H_
 #define __NEIGHBOR_H_
 
+#ifdef NBLIST_AOS
+#define NBLIST_DATA_LAYOUT "AoS"
+#define neighs(nblist,i,j,M,N) nblist[(i) * N + (j)]
+#else
+#define NBLIST_DATA_LAYOUT "SoA"
+#define neighs(nblist,i,j,M,N) nblist[(j) * M + (i)]
+#endif
+
 typedef struct {
     int* neighbors;
     int* numneigh;

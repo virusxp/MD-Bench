@@ -276,7 +276,6 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
         resize            = 0;
 
         for (int i = 0; i < atom->Nlocal; i++) {
-            int* neighptr = &(neighbor->neighbors[i * neighbor->maxneighs]);
             int n         = 0;
             MD_FLOAT xtmp = atom_x(i);
             MD_FLOAT ytmp = atom_y(i);
@@ -309,7 +308,8 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
                     const MD_FLOAT cutoff = cutneighsq;
 #endif
                     if (rsq <= cutoff) {
-                        neighptr[n++] = j;
+                        neighs(neighbor->neighbors, i, n, atom->Nlocal, neighbor->maxneighs) = j;
+                        n++;
                     }
                 }
             }
@@ -453,7 +453,7 @@ void sortAtom(Atom* atom)
         binpos[i] += binpos[i - 1];
     }
 
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
     MD_FLOAT* new_x  = (MD_FLOAT*)malloc(Nmax * sizeof(MD_FLOAT) * 3);
     MD_FLOAT* new_vx = (MD_FLOAT*)malloc(Nmax * sizeof(MD_FLOAT) * 3);
 #else
@@ -477,7 +477,7 @@ void sortAtom(Atom* atom)
         for (int k = 0; k < count; k++) {
             int new_i = start + k;
             int old_i = bins[mybin * atoms_per_bin + k];
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
             new_x[new_i * 3 + 0]  = old_x[old_i * 3 + 0];
             new_x[new_i * 3 + 1]  = old_x[old_i * 3 + 1];
             new_x[new_i * 3 + 2]  = old_x[old_i * 3 + 2];
@@ -499,7 +499,7 @@ void sortAtom(Atom* atom)
     free(atom->vx);
     atom->x  = new_x;
     atom->vx = new_vx;
-#ifndef AOS
+#ifndef ATOM_POSITION_AOS
     free(atom->y);
     free(atom->z);
     free(atom->vy);
@@ -598,7 +598,6 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor)
     while (resize) {
         resize = 0;
         for (int i = 0; i < Nshell; i++) {
-            int* neighshell = &(neighbor->neighshell[i * neighbor->maxneighs]);
             int n           = 0;
             int iatom       = neighbor->listshell[i];
             int izone       = ghostZone(atom, iatom);
@@ -637,7 +636,8 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor)
                     const MD_FLOAT cutoff = cutneighsq;
 #endif
                     if (rsq <= cutoff) {
-                        neighshell[n++] = jatom;
+                        neighs(neighbor->neighshell, i, n, Nshell, neighbor->maxneighs) = jatom;
+                        n++;
                     }
                 }
             }

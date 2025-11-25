@@ -705,7 +705,7 @@ void growAtom(Atom* atom) {
     atom->p        = (t*)reallocate(atom->p, ALIGNMENT, ns, os);                         \
     atom->d_atom.p = (t*)reallocateGPU(atom->d_atom.p, ns);
 
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
     REALLOC(x, MD_FLOAT, atom->Nmax * sizeof(MD_FLOAT) * 3, nold * sizeof(MD_FLOAT) * 3);
     REALLOC(vx, MD_FLOAT, atom->Nmax * sizeof(MD_FLOAT) * 3, nold * sizeof(MD_FLOAT) * 3);
     REALLOC(fx, MD_FLOAT, atom->Nmax * sizeof(MD_FLOAT) * 3, nold * sizeof(MD_FLOAT) * 3);
@@ -733,7 +733,7 @@ void freeAtom(Atom* atom) {
     atom->p        = NULL;                                                               \
     atom->d_atom.p = NULL;
 
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
     FREE_ATOM(x);
     FREE_ATOM(vx);
     FREE_ATOM(fx);

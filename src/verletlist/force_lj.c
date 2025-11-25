@@ -41,7 +41,6 @@ double computeForceLJFullNeigh(
 
 #pragma omp for schedule(runtime)
         for (int i = 0; i < nLocal; i++) {
-            neighs        = &neighbor->neighbors[i * neighbor->maxneighs];
             int numneighs = neighbor->numneigh[i];
             MD_FLOAT xtmp = atom_x(i);
             MD_FLOAT ytmp = atom_y(i);
@@ -55,7 +54,7 @@ double computeForceLJFullNeigh(
 #endif
 
             for (int k = 0; k < numneighs; k++) {
-                int j         = neighs[k];
+                int j         = neighs(neighbor->neighbors, i, k, nLocal, neighbor->maxneighs);
                 MD_FLOAT delx = xtmp - atom_x(j);
                 MD_FLOAT dely = ytmp - atom_y(j);
                 MD_FLOAT delz = ztmp - atom_z(j);
@@ -136,7 +135,6 @@ double computeForceLJHalfNeigh(
 
 #pragma omp for schedule(runtime)
         for (int i = 0; i < nlocal; i++) {
-            neighs        = &neighbor->neighbors[i * neighbor->maxneighs];
             int numneighs = neighbor->numneigh[i];
             MD_FLOAT xtmp = atom_x(i);
             MD_FLOAT ytmp = atom_y(i);
@@ -154,7 +152,7 @@ double computeForceLJHalfNeigh(
 #pragma omp simd reduction(+ : fix, fiy, fiz)
 #endif
             for (int k = 0; k < numneighs; k++) {
-                int j         = neighs[k];
+                int j         = neighs(neighbor->neighbors, i, k, nlocal, neighbor->maxneighs);
                 MD_FLOAT delx = xtmp - atom_x(j);
                 MD_FLOAT dely = ytmp - atom_y(j);
                 MD_FLOAT delz = ztmp - atom_z(j);
@@ -206,7 +204,6 @@ double computeForceLJHalfNeigh(
 void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor)
 {
     int Nshell = neighbor->Nshell;
-    int* neighs;
 #ifndef EXPLICIT_TYPES
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
     MD_FLOAT sigma6     = param->sigma6;
@@ -217,7 +214,6 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor)
     const MD_FLOAT num05 = 0.5;
 
     for (int i = 0; i < Nshell; i++) {
-        neighs        = &(neighbor->neighshell[i * neighbor->maxneighs]);
         int numneigh  = neighbor->numNeighShell[i];
         int iatom     = neighbor->listshell[i];
         MD_FLOAT xtmp = atom_x(iatom);
@@ -232,7 +228,7 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor)
 #endif
 
         for (int k = 0; k < numneigh; k++) {
-            int jatom     = neighs[k];
+            int jatom     = neighs(neighbor->neighshell, i, k, Nshell, neighbor->maxneighs);
             MD_FLOAT delx = xtmp - atom_x(jatom);
             MD_FLOAT dely = ytmp - atom_y(jatom);
             MD_FLOAT delz = ztmp - atom_z(jatom);

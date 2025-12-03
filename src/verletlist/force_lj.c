@@ -17,6 +17,8 @@ void computeForceGhostShell(Parameter*, Atom*, Neighbor*);
 double computeForceLJFullNeigh(
     Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
 {
+    DEBUG_MESSAGE("computeForceLJFullNeigh begin\n");
+
     int nlocal = atom->Nlocal;
     int* neighs;
 #ifdef ONE_ATOM_TYPE
@@ -103,12 +105,13 @@ double computeForceLJFullNeigh(
     }
 
     double timeStop = getTimeStamp();
+    DEBUG_MESSAGE("computeForceLJFullNeigh end\n");
     return timeStop - timeStart;
 }
 
-double computeForceLJHalfNeigh(
-    Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
-{
+double computeForceLJHalfNeigh(Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats) {
+    DEBUG_MESSAGE("computeForceLJHalfNeigh begin\n");
+
     int nlocal = atom->Nlocal;
     int nghost = atom->Nghost;
     int* neighs;
@@ -198,11 +201,12 @@ double computeForceLJHalfNeigh(
     }
 
     double timeStop = getTimeStamp();
+    DEBUG_MESSAGE("computeForceLJHalfNeigh end\n");
     return timeStop - timeStart;
 }
 
-void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor)
-{
+void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor) {
+    DEBUG_MESSAGE("computeForceGhostShell begin\n");
     int Nshell = neighbor->Nshell;
 #ifndef EXPLICIT_TYPES
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
@@ -247,8 +251,11 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor)
                 atom_fz(jatom) -= delz * force;
             }
         }
+
         atom_fx(iatom) += fix;
         atom_fy(iatom) += fiy;
         atom_fz(iatom) += fiz;
     }
+
+    DEBUG_MESSAGE("computeForceGhostShell end\n");
 }

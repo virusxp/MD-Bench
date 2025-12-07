@@ -32,6 +32,13 @@ extern MD_FLOAT *cuda_bbminx, *cuda_bbmaxx;
 extern MD_FLOAT *cuda_bbminy, *cuda_bbmaxy;
 extern MD_FLOAT *cuda_bbminz, *cuda_bbmaxz;
 extern int *cuda_PBCx, *cuda_PBCy, *cuda_PBCz;
+
+#ifndef ONE_ATOM_TYPE
+extern int* cuda_cl_t;
+extern MD_FLOAT* cuda_cutforcesq;
+extern MD_FLOAT* cuda_sigma6;
+extern MD_FLOAT* cuda_epsilon;
+#endif
 }
 
 __global__ void cudaInitialIntegrateSup_warp(MD_FLOAT* cuda_cl_x,
@@ -121,10 +128,18 @@ __global__ void computeForceLJCudaSup_warp(MD_FLOAT* cuda_cl_x,
     int* cuda_neighs,
     int half_neigh,
     int maxneighs,
+#ifdef ONE_ATOM_TYPE
     MD_FLOAT cutforcesq,
     MD_FLOAT sigma6,
-    MD_FLOAT epsilon) {
-
+    MD_FLOAT epsilon
+#else
+    int* cuda_cl_t,
+    MD_FLOAT* atom_cutforcesq,
+    MD_FLOAT* atom_sigma6,
+    MD_FLOAT* atom_epsilon,
+    int ntypes
+#endif
+) {
     __shared__ MD_FLOAT4 sh_sci_x[SCLUSTER_SIZE * CLUSTER_M];
     int sci = blockIdx.x;
     #ifdef SUPERCLUSTER_INVERSE_THREAD_MAPPING
@@ -139,7 +154,9 @@ __global__ void computeForceLJCudaSup_warp(MD_FLOAT* cuda_cl_x,
     MD_FLOAT* sci_f  = &cuda_cl_f[SCI_VECTOR3_BASE_INDEX(sci)];
     int tid = cjj * CLUSTER_M + cii;
     MD_FLOAT3 fbuf[SCLUSTER_SIZE];
-
+    #ifndef ONE_ATOM_TYPE
+    int sci_sca_base = SCI_SCALAR_BASE_INDEX(sci);
+    #endif
     #pragma unroll
     for(int i = 0; i < SCLUSTER_SIZE; i++) {
         fbuf[i].x = (MD_FLOAT)0.0;
@@ -169,6 +186,11 @@ __global__ void computeForceLJCudaSup_warp(MD_FLOAT* cuda_cl_x,
         fcj_buf = float3{0.0f, 0.0f, 0.0f};
         #endif
 
+        #ifndef ONE_ATOM_TYPE
+        int cj_sca_base     = CJ_SCALAR_BASE_INDEX(cj);
+        int type_j          = cuda_cl_t[cj_sca_base + cjj];
+        #endif  
+
         #pragma unroll
         for(int sci_ci = 0; sci_ci < SCLUSTER_SIZE; sci_ci++) {
             const int ci = sci * SCLUSTER_SIZE + sci_ci;
@@ -186,6 +208,14 @@ __global__ void computeForceLJCudaSup_warp(MD_FLOAT* cuda_cl_x,
                 MD_FLOAT dely = sh_sci_x[ai].y - yjtmp;
                 MD_FLOAT delz = sh_sci_x[ai].z - zjtmp;
                 MD_FLOAT rsq  = delx * delx + dely * dely + delz * delz;
+
+                #ifndef ONE_ATOM_TYPE
+                int type_i          = cuda_cl_t[sci_sca_base + ci * CLUSTER_N + cii];
+                int type_index      = type_i * ntypes + type_j;
+                MD_FLOAT cutforcesq = atom_cutforcesq[type_index];
+                MD_FLOAT sigma6     = atom_sigma6[type_index];
+                MD_FLOAT epsilon    = atom_epsilon[type_index];
+                #endif
 
                 if(rsq < cutforcesq) {
                     MD_FLOAT sr2   = (MD_FLOAT)(1.0) / rsq;
@@ -338,9 +368,11 @@ __global__ void cudaUpdatePbcSup_warp(MD_FLOAT* cuda_cl_x,
 extern "C" double computeForceLJCudaSup(Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats) {
     DEBUG_MESSAGE("computeForceLJCudaSup start\r\n");
 
+#ifdef ONE_ATOM_TYPE
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
     MD_FLOAT sigma6     = param->sigma6;
     MD_FLOAT epsilon    = param->epsilon;
+#endif
 
     memsetGPU(cuda_cl_f, 0, (atom->Nclusters_local*SCLUSTER_SIZE+atom->Nclusters_ghost) * CLUSTER_M  * 3 * sizeof(MD_FLOAT));
     dim3 block_size       = dim3(CLUSTER_N, CLUSTER_M, 1);
@@ -355,9 +387,18 @@ extern "C" double computeForceLJCudaSup(Parameter* param, Atom* atom, Neighbor* 
         cuda_neighbors,
         neighbor->half_neigh,
         neighbor->maxneighs,
+#ifdef ONE_ATOM_TYPE
         cutforcesq,
         sigma6,
-        epsilon);
+        epsilon
+#else
+        cuda_cl_t,
+        cuda_cutforcesq,
+        cuda_sigma6,
+        cuda_epsilon,
+        atom->ntypes
+#endif
+    );
 
     cuda_assert("computeForceLJCudaSup", cudaPeekAtLastError());
     cuda_assert("computeForceLJCudaSup", cudaDeviceSynchronize());

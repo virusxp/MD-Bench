@@ -281,56 +281,50 @@ __global__ void computeForceLJCudaSup_warp(MD_FLOAT* cuda_cl_x,
         // warp shuffles instead of using atomics since it should be cheaper
         // It is very unlikely that M > 32, but we keep this check here to
         // avoid any issues in such situations
-        #if CLUSTER_M <= 32
-        if (half_neigh) {
-            atomicAdd(&sci_f[CL_X_INDEX_3D(ai)], fbuf[sci_ci].x);
-            atomicAdd(&sci_f[CL_Y_INDEX_3D(ai)], fbuf[sci_ci].y);
-            atomicAdd(&sci_f[CL_Z_INDEX_3D(ai)], fbuf[sci_ci].z);
-        } else {
-            MD_FLOAT fix  = fbuf[sci_ci].x;
-            MD_FLOAT fiy  = fbuf[sci_ci].y;
-            MD_FLOAT fiz  = fbuf[sci_ci].z;
-            unsigned mask = 0xffffffff;
+    #if CLUSTER_M <= 32
+        MD_FLOAT fix  = fbuf[sci_ci].x;
+        MD_FLOAT fiy  = fbuf[sci_ci].y;
+        MD_FLOAT fiz  = fbuf[sci_ci].z;
+        unsigned mask = 0xffffffff;
 
-            #ifdef SUPERCLUSTER_INVERSE_THREAD_MAPPING
-            for (int offset = CLUSTER_M / 2; offset > 0; offset /= 2) {
-                fix += __shfl_down_sync(mask, fix, offset);
-                fiy += __shfl_down_sync(mask, fiy, offset);
-                fiz += __shfl_down_sync(mask, fiz, offset);
-            }
-
-            if (cjj == 0) {
-                sci_f[CL_X_INDEX_3D(ai)] = fix;
-                sci_f[CL_Y_INDEX_3D(ai)] = fiy;
-                sci_f[CL_Z_INDEX_3D(ai)] = fiz;
-            }
-            #else
-            fix += __shfl_down_sync(mask, fix, CLUSTER_M);
-            fiy += __shfl_up_sync(mask, fiy, CLUSTER_M);
-            fiz += __shfl_down_sync(mask, fiz, CLUSTER_M);
-
-            if(cjj & 1) {
-                fix = fiy;
-            }
-
-            fix += __shfl_down_sync(mask, fix, 2 * CLUSTER_M);
-            fiz += __shfl_up_sync(mask, fiz, 2 * CLUSTER_M);
-            if(cjj & 2) {
-                fix = fiz;
-            }
-
-            /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
-            if((cjj & 3) < 3) {
-                atomicAdd(&sci_f[ai * 3 + (cjj & 3)], fix);
-            }
-            #endif
+        #ifdef SUPERCLUSTER_INVERSE_THREAD_MAPPING
+        for (int offset = CLUSTER_M / 2; offset > 0; offset /= 2) {
+            fix += __shfl_down_sync(mask, fix, offset);
+            fiy += __shfl_down_sync(mask, fiy, offset);
+            fiz += __shfl_down_sync(mask, fiz, offset);
         }
 
+        if (cjj == 0) {
+            sci_f[CL_X_INDEX_3D(ai)] = fix;
+            sci_f[CL_Y_INDEX_3D(ai)] = fiy;
+            sci_f[CL_Z_INDEX_3D(ai)] = fiz;
+        }
         #else
+        fix += __shfl_down_sync(mask, fix, CLUSTER_M);
+        fiy += __shfl_up_sync(mask, fiy, CLUSTER_M);
+        fiz += __shfl_down_sync(mask, fiz, CLUSTER_M);
+
+        if(cjj & 1) {
+            fix = fiy;
+        }
+        
+        fix += __shfl_down_sync(mask, fix, 2 * CLUSTER_M);
+        fiz += __shfl_up_sync(mask, fiz, 2 * CLUSTER_M);
+        if(cjj & 2) {
+            fix = fiz;
+        }
+
+        /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
+        if((cjj & 3) < 3) {
+            atomicAdd(&sci_f[ai * 3 + (cjj & 3)], fix);
+        }
+        #endif
+        
+    #else
         atomicAdd(&sci_f[CL_X_INDEX_3D(ai)], fbuf[sci_ci].x);
         atomicAdd(&sci_f[CL_Y_INDEX_3D(ai)], fbuf[sci_ci].y);
         atomicAdd(&sci_f[CL_Z_INDEX_3D(ai)], fbuf[sci_ci].z);
-        #endif
+    #endif
     }
 }
 

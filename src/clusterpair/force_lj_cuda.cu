@@ -200,8 +200,13 @@ __global__ void computeForceLJCudaFullNeigh(
     int maxneighs) {
 
     int ci          = blockIdx.x;
-    int cii         = threadIdx.z;
-    int cjj         = threadIdx.y;
+#ifdef SUPERCLUSTER_INVERSE_THREAD_MAPPING
+    int cii         = threadIdx.y;
+    int cjj         = threadIdx.x;
+#else
+    int cii         = threadIdx.x;
+    int cjj         = threadIdx.y;    
+#endif
     int ci_cj0      = CJ0_FROM_CI(ci);
     MD_FLOAT* ci_x  = &cuda_cl_x[CI_VECTOR_BASE_INDEX(ci)];
     MD_FLOAT* ci_f  = &cuda_cl_f[CI_VECTOR3_BASE_INDEX(ci)];
@@ -261,8 +266,9 @@ __global__ void computeForceLJCudaFullNeigh(
     // warp shuffles instead of using atomics since it should be cheaper
     // It is very unlikely that M > 32, but we keep this check here to
     // avoid any issues in such situations
-    #if CLUSTER_M <= 32
+#if CLUSTER_M <= 32
     unsigned mask = 0xffffffff;
+    #ifdef SUPERCLUSTER_INVERSE_THREAD_MAPPING
     for (int offset = CLUSTER_M / 2; offset > 0; offset /= 2) {
         #ifdef CUDA_TARGET
         fix += __shfl_down_sync(mask, fix, offset);
@@ -281,10 +287,31 @@ __global__ void computeForceLJCudaFullNeigh(
         ci_f[CL_Z_INDEX_3D(cii)] = fiz;
     }
     #else
+    fix += __shfl_down_sync(mask, fix, CLUSTER_M);
+    fiy += __shfl_up_sync(mask, fiy, CLUSTER_M);
+    fiz += __shfl_down_sync(mask, fiz, CLUSTER_M);
+
+    if(cjj & 1) {
+        fix = fiy;
+    }
+
+    fix += __shfl_down_sync(mask, fix, 2 * CLUSTER_M);
+    fiz += __shfl_up_sync(mask, fiz, 2 * CLUSTER_M);
+    if(cjj & 2) {
+        fix = fiz;
+    }
+
+    /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
+    if((cjj & 3) < 3) {
+        atomicAdd(&ci_f[cii * 3 + (cjj & 3)], fix);
+    }
+
+    #endif
+#else
     atomicAdd(&ci_f[CL_X_INDEX_3D(cii)], fix);
     atomicAdd(&ci_f[CL_Y_INDEX_3D(cii)], fiy);
     atomicAdd(&ci_f[CL_Z_INDEX_3D(cii)], fiz);
-    #endif
+#endif
 }
 
 __global__ void computeForceLJCudaHalfNeigh(
@@ -307,13 +334,14 @@ __global__ void computeForceLJCudaHalfNeigh(
     int* cuda_neighs,
     int maxneighs)
 {
-    int ci = blockDim.x * blockIdx.x + threadIdx.x;
-    if (ci >= Nclusters_local) {
-        return;
-    }
-
-    int cii         = threadIdx.z;
-    int cjj         = threadIdx.y;
+    int ci          = blockIdx.x;
+#ifdef SUPERCLUSTER_INVERSE_THREAD_MAPPING
+    int cii         = threadIdx.y;
+    int cjj         = threadIdx.x;
+#else
+    int cii         = threadIdx.x;
+    int cjj         = threadIdx.y;    
+#endif
     int ci_cj0      = CJ0_FROM_CI(ci);
     MD_FLOAT* ci_x  = &cuda_cl_x[CI_VECTOR_BASE_INDEX(ci)];
     MD_FLOAT* ci_f  = &cuda_cl_f[CI_VECTOR3_BASE_INDEX(ci)];
@@ -376,9 +404,42 @@ __global__ void computeForceLJCudaHalfNeigh(
         }
     }
 
+    // If M is less than the warp size, we perform forces reduction via
+    // warp shuffles instead of using atomics since it should be cheaper
+    // It is very unlikely that M > 32, but we keep this check here to
+    // avoid any issues in such situations
+#if CLUSTER_M <= 32
+    #ifdef SUPERCLUSTER_INVERSE_THREAD_MAPPING
     atomicAdd(&ci_f[CL_X_INDEX_3D(cii)], fix);
     atomicAdd(&ci_f[CL_Y_INDEX_3D(cii)], fiy);
     atomicAdd(&ci_f[CL_Z_INDEX_3D(cii)], fiz);
+    #else
+    unsigned mask = 0xffffffff;
+    fix += __shfl_down_sync(mask, fix, CLUSTER_M);
+    fiy += __shfl_up_sync(mask, fiy, CLUSTER_M);
+    fiz += __shfl_down_sync(mask, fiz, CLUSTER_M);
+
+    if(cjj & 1) {
+        fix = fiy;
+    }
+
+    fix += __shfl_down_sync(mask, fix, 2 * CLUSTER_M);
+    fiz += __shfl_up_sync(mask, fiz, 2 * CLUSTER_M);
+    if(cjj & 2) {
+        fix = fiz;
+    }
+
+    /* Threads 0,1,2 and 4,5,6 increment x,y,z for their warp */
+    if((cjj & 3) < 3) {
+        atomicAdd(&ci_f[cii * 3 + (cjj & 3)], fix);
+    }
+
+    #endif
+#else
+    atomicAdd(&ci_f[CL_X_INDEX_3D(cii)], fix);
+    atomicAdd(&ci_f[CL_Y_INDEX_3D(cii)], fiy);
+    atomicAdd(&ci_f[CL_Z_INDEX_3D(cii)], fiz);
+#endif
 }
 
 __global__ void cudaInitialIntegrate_warp(MD_FLOAT* cuda_cl_x,
@@ -550,7 +611,7 @@ extern "C" double computeForceLJCuda(Parameter* param, Atom* atom, Neighbor* nei
 
     // memsetGPU(cuda_cl_f, 0, atom->Nclusters_local * CLUSTER_M * 3 * sizeof(MD_FLOAT));
     memsetGPU(cuda_cl_f, 0, (atom->Nclusters_local*SCLUSTER_SIZE+atom->Nclusters_ghost) * CLUSTER_M  * 3 * sizeof(MD_FLOAT));
-    dim3 block_size = dim3(1, CLUSTER_N, CLUSTER_M);
+    dim3 block_size = dim3(CLUSTER_N, CLUSTER_M, 1);
     dim3 grid_size  = dim3(atom->Nclusters_local, 1, 1);
     double S        = getTimeStamp();
     LIKWID_MARKER_START("force");

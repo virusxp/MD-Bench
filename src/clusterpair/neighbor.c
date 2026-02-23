@@ -1456,9 +1456,9 @@ void buildClustersCPU(Atom* atom) {
             MD_FLOAT* ci_x  = &atom->cl_x[ci_vec_base];
             MD_FLOAT* ci_v  = &atom->cl_v[ci_vec_base];
             int* ci_t       = &atom->cl_t[ci_sca_base];
-            MD_FLOAT bbminx = INFINITY, bbmaxx = -INFINITY;
-            MD_FLOAT bbminy = INFINITY, bbmaxy = -INFINITY;
-            MD_FLOAT bbminz = INFINITY, bbmaxz = -INFINITY;
+            MD_FLOAT bbminx = INF, bbmaxx = -INF;
+            MD_FLOAT bbminy = INF, bbmaxy = -INF;
+            MD_FLOAT bbminz = INF, bbmaxz = -INF;
 
             atom->iclusters[ci].natoms = 0;
             for (int cii = 0; cii < CLUSTER_M; cii++) {
@@ -1499,10 +1499,10 @@ void buildClustersCPU(Atom* atom) {
                     ci_t[cii] = atom->type[i];
                     atom->iclusters[ci].natoms++;
                 } else {
-                    ci_x[CL_X_INDEX_3D(cii)] = INFINITY;
-                    ci_x[CL_Y_INDEX_3D(cii)] = INFINITY;
-                    ci_x[CL_Z_INDEX_3D(cii)] = INFINITY;
-                    ci_t[cii]               = 0;
+                    ci_x[CL_X_INDEX_3D(cii)] = INF;
+                    ci_x[CL_Y_INDEX_3D(cii)] = INF;
+                    ci_x[CL_Z_INDEX_3D(cii)] = INF;
+                    ci_t[cii]                = 0;
                 }
 
                 ac++;
@@ -1725,9 +1725,9 @@ void defineJClusters(Parameter* param, Atom* atom) {
             int cj1         = CJ1_FROM_CI(ci);
             int ci_vec_base = CI_VECTOR_BASE_INDEX(ci);
             MD_FLOAT* ci_x  = &atom->cl_x[ci_vec_base];
-            MD_FLOAT bbminx = INFINITY, bbmaxx = -INFINITY;
-            MD_FLOAT bbminy = INFINITY, bbmaxy = -INFINITY;
-            MD_FLOAT bbminz = INFINITY, bbmaxz = -INFINITY;
+            MD_FLOAT bbminx = INF, bbmaxx = -INF;
+            MD_FLOAT bbminy = INF, bbmaxy = -INF;
+            MD_FLOAT bbminz = INF, bbmaxz = -INF;
 
             for (int cii = 0; cii < MIN(atom->iclusters[ci].natoms, CLUSTER_N); cii++) {
                 MD_FLOAT xtmp = ci_x[CL_X_INDEX(cii)];
@@ -1763,9 +1763,9 @@ void defineJClusters(Parameter* param, Atom* atom) {
             atom->jclusters[cj0].bbmaxz = bbmaxz;
             atom->jclusters[cj0].natoms = MIN(atom->iclusters[ci].natoms, CLUSTER_N);
 
-            bbminx = INFINITY, bbmaxx = -INFINITY;
-            bbminy = INFINITY, bbmaxy = -INFINITY;
-            bbminz = INFINITY, bbmaxz = -INFINITY;
+            bbminx = INF, bbmaxx = -INF;
+            bbminy = INF, bbmaxy = -INF;
+            bbminz = INF, bbmaxz = -INF;
 
             for (int cii = CLUSTER_N; cii < atom->iclusters[ci].natoms; cii++) {
                 MD_FLOAT xtmp = ci_x[CL_X_INDEX(cii)];

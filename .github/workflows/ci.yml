@@ -2,8 +2,10 @@ name: MD-Bench CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - '**'          # run on all branches, including feature branches
   pull_request:
+  workflow_dispatch:  # allow manual runs from the GitHub UI
 
 env:
   ISA: X86

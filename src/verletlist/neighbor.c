@@ -13,6 +13,10 @@
 #include <parameter.h>
 #include <util.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #define SMALL  1.0e-6
 #define FACTOR 0.999
 
@@ -273,8 +277,9 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
     /* loop over each atom, storing neighbors */
     while (resize) {
         int new_maxneighs = neighbor->maxneighs;
-        resize            = 0;
+        int resize_local   = 0;
 
+#pragma omp parallel for schedule(runtime) reduction(max : new_maxneighs) reduction(| : resize_local)
         for (int i = 0; i < atom->Nlocal; i++) {
             int n         = 0;
             MD_FLOAT xtmp = atom_x(i);
@@ -293,7 +298,6 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
                     if (i == j) continue;
                     if (neighbor->half_neigh && j < i) continue;
                     if (half_stencil && ibin == jbin && skipNeigh(atom, i, j)) continue;
-                    // if ((j == i) || (neighbor->half_neigh && (j < i))) continue;
 
                     MD_FLOAT delx = xtmp - atom_x(j);
                     MD_FLOAT dely = ytmp - atom_y(j);
@@ -316,13 +320,14 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
 
             neighbor->numneigh[i] = n;
             if (n >= neighbor->maxneighs) {
-                resize = 1;
-
-                if (n >= new_maxneighs) {
+                resize_local = 1;
+                if (n > new_maxneighs) {
                     new_maxneighs = n;
                 }
             }
         }
+
+        resize = resize_local;
 
         if (resize) {
             printf("RESIZE %d, PROC %d\n", neighbor->maxneighs, me);

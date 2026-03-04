@@ -300,7 +300,9 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
         const int nbM     = atom->Nclusters_local;
         const int nbN     = neighbor->maxneighs;
         int new_maxneighs = neighbor->maxneighs;
-        resize            = 0;
+        int resize_local  = 0;
+
+#pragma omp parallel for schedule(runtime) reduction(max : new_maxneighs) reduction(| : resize_local)
         for (int ci = 0; ci < atom->Nclusters_local; ci++) {
             int ci_cj0    = CJ0_FROM_CI(ci);
             int n = 0, nmasked = 0;
@@ -637,13 +639,15 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
             neighbor->numneigh[ci]        = n;
             neighbor->numneigh_masked[ci] = nmasked;
             if (n >= neighbor->maxneighs) {
-                resize = 1;
+                resize_local = 1;
 
-                if (n >= new_maxneighs) {
+                if (n > new_maxneighs) {
                     new_maxneighs = n;
                 }
             }
         }
+
+        resize = resize_local;
 
         if (resize) {
             neighbor->maxneighs = new_maxneighs * 1.2;

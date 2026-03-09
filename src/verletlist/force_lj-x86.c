@@ -27,9 +27,11 @@ double computeForceLJFullNeigh_simd(
 #endif
     int Nlocal = atom->Nlocal;
     int* neighs;
+#ifdef ONE_ATOM_TYPE
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
     MD_FLOAT sigma6     = param->sigma6;
     MD_FLOAT epsilon    = param->epsilon;
+#endif
 
     for (int i = 0; i < Nlocal; i++) {
         atom_fx(i) = 0.0;
@@ -43,9 +45,11 @@ double computeForceLJFullNeigh_simd(
     fprintf(stderr, "Error: SIMD kernel not implemented for specified instruction set!");
     exit(-1);
 #else
+#ifdef ONE_ATOM_TYPE
     MD_SIMD_FLOAT cutforcesq_vec = simd_real_broadcast(cutforcesq);
     MD_SIMD_FLOAT sigma6_vec     = simd_real_broadcast(sigma6);
     MD_SIMD_FLOAT eps_vec        = simd_real_broadcast(epsilon);
+#endif
     MD_SIMD_FLOAT c48_vec        = simd_real_broadcast(48.0);
     MD_SIMD_FLOAT c05_vec        = simd_real_broadcast(0.5);
 
@@ -65,6 +69,12 @@ double computeForceLJFullNeigh_simd(
             MD_SIMD_FLOAT fiy         = simd_real_zero();
             MD_SIMD_FLOAT fiz         = simd_real_zero();
 
+#ifndef ONE_ATOM_TYPE
+            const int type_i             = atom->type[i];
+            MD_SIMD_INT type_i_vec       = simd_i32_broadcast(type_i);
+            MD_SIMD_INT ntypes_vec       = simd_i32_broadcast(atom->ntypes);
+#endif
+
             for (int k = 0; k < numneighs; k += VECTOR_WIDTH) {
                 // If the last iteration of this loop is separated from the rest, this
                 // mask can be set only there
@@ -72,6 +82,18 @@ double computeForceLJFullNeigh_simd(
                     simd_i32_add(simd_i32_broadcast(k), simd_i32_seq()),
                     numneighs_vec);
                 MD_SIMD_INT j            = simd_i32_mask_load(&neighs[k], mask_numneighs);
+
+#ifndef ONE_ATOM_TYPE
+                // Gather atom types and compute pair-type indices
+                MD_SIMD_INT type_j       = simd_i32_gather(j, atom->type, sizeof(int));
+                MD_SIMD_INT type_ij      = simd_i32_add(simd_i32_mul(type_i_vec, ntypes_vec), type_j);
+
+                // Gather LJ parameters for each pair type
+                MD_SIMD_FLOAT cutforcesq_vec = simd_real_gather(type_ij, atom->cutforcesq, sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT sigma6_vec     = simd_real_gather(type_ij, atom->sigma6, sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT eps_vec        = simd_real_gather(type_ij, atom->epsilon, sizeof(MD_FLOAT));
+#endif
+
 #ifdef ATOM_POSITION_AOS
                 MD_SIMD_INT j3           = simd_i32_add(simd_i32_add(j, j), j); // j * 3
                 MD_SIMD_FLOAT delx       = xtmp - simd_real_gather(j3,
@@ -107,6 +129,171 @@ double computeForceLJFullNeigh_simd(
                 fix = simd_real_masked_add(fix, simd_real_mul(delx, force), cutoff_mask);
                 fiy = simd_real_masked_add(fiy, simd_real_mul(dely, force), cutoff_mask);
                 fiz = simd_real_masked_add(fiz, simd_real_mul(delz, force), cutoff_mask);
+            }
+
+            atom_fx(i) += simd_real_h_reduce_sum(fix);
+            atom_fy(i) += simd_real_h_reduce_sum(fiy);
+            atom_fz(i) += simd_real_h_reduce_sum(fiz);
+        }
+
+        LIKWID_MARKER_STOP("force");
+    }
+#endif
+
+    double E = getTimeStamp();
+    return E - S;
+}
+
+double computeForceLJHalfNeigh_simd(
+    Parameter* param, Atom* atom, Neighbor* neighbor, Stats* stats)
+{
+#ifdef NBLIST_SOA
+    fprintf(stderr, "Error: SIMD kernel not implemented when NBLIST_DATA_LAYOUT is SOA!");
+    exit(-1);
+#endif
+    int Nlocal = atom->Nlocal;
+    int Nghost = atom->Nghost;
+    int* neighs;
+#ifdef ONE_ATOM_TYPE
+    MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
+    MD_FLOAT sigma6     = param->sigma6;
+    MD_FLOAT epsilon    = param->epsilon;
+#endif
+
+    for (int i = 0; i < Nlocal + Nghost; i++) {
+        atom_fx(i) = 0.0;
+        atom_fy(i) = 0.0;
+        atom_fz(i) = 0.0;
+    }
+
+    double S = getTimeStamp();
+
+#ifndef __SIMD_KERNEL__
+    fprintf(stderr, "Error: SIMD kernel not implemented for specified instruction set!");
+    exit(-1);
+#else
+#ifdef ONE_ATOM_TYPE
+    MD_SIMD_FLOAT cutforcesq_vec = simd_real_broadcast(cutforcesq);
+    MD_SIMD_FLOAT sigma6_vec     = simd_real_broadcast(sigma6);
+    MD_SIMD_FLOAT eps_vec        = simd_real_broadcast(epsilon);
+#endif
+    MD_SIMD_FLOAT c48_vec        = simd_real_broadcast(48.0);
+    MD_SIMD_FLOAT c05_vec        = simd_real_broadcast(0.5);
+    MD_SIMD_INT nlocal_vec       = simd_i32_broadcast(Nlocal);
+
+#pragma omp parallel
+    {
+        LIKWID_MARKER_START("force");
+
+        // Thread-local temporary arrays for storing SIMD results
+        MD_FLOAT tmp_fx[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
+        MD_FLOAT tmp_fy[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
+        MD_FLOAT tmp_fz[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
+        MD_FLOAT tmp_delx[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
+        MD_FLOAT tmp_dely[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
+        MD_FLOAT tmp_delz[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
+        int tmp_j[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(int))));
+
+#pragma omp for schedule(runtime)
+        for (int i = 0; i < Nlocal; i++) {
+            neighs                    = &neighbor->neighbors[i * neighbor->maxneighs];
+            int numneighs             = neighbor->numneigh[i];
+            MD_SIMD_INT numneighs_vec = simd_i32_broadcast(numneighs);
+            MD_SIMD_FLOAT xtmp        = simd_real_broadcast(atom_x(i));
+            MD_SIMD_FLOAT ytmp        = simd_real_broadcast(atom_y(i));
+            MD_SIMD_FLOAT ztmp        = simd_real_broadcast(atom_z(i));
+            MD_SIMD_FLOAT fix         = simd_real_zero();
+            MD_SIMD_FLOAT fiy         = simd_real_zero();
+            MD_SIMD_FLOAT fiz         = simd_real_zero();
+
+#ifndef ONE_ATOM_TYPE
+            const int type_i             = atom->type[i];
+            MD_SIMD_INT type_i_vec       = simd_i32_broadcast(type_i);
+            MD_SIMD_INT ntypes_vec       = simd_i32_broadcast(atom->ntypes);
+#endif
+
+            for (int k = 0; k < numneighs; k += VECTOR_WIDTH) {
+                // Mask for valid neighbors in this iteration
+                MD_SIMD_MASK mask_numneighs = simd_mask_i32_cond_lt(
+                    simd_i32_add(simd_i32_broadcast(k), simd_i32_seq()),
+                    numneighs_vec);
+                MD_SIMD_INT j            = simd_i32_mask_load(&neighs[k], mask_numneighs);
+
+#ifndef ONE_ATOM_TYPE
+                // Gather atom types and compute pair-type indices
+                MD_SIMD_INT type_j       = simd_i32_gather(j, atom->type, sizeof(int));
+                MD_SIMD_INT type_ij      = simd_i32_add(simd_i32_mul(type_i_vec, ntypes_vec), type_j);
+
+                // Gather LJ parameters for each pair type
+                MD_SIMD_FLOAT cutforcesq_vec = simd_real_gather(type_ij, atom->cutforcesq, sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT sigma6_vec     = simd_real_gather(type_ij, atom->sigma6, sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT eps_vec        = simd_real_gather(type_ij, atom->epsilon, sizeof(MD_FLOAT));
+#endif
+
+#ifdef ATOM_POSITION_AOS
+                MD_SIMD_INT j3           = simd_i32_add(simd_i32_add(j, j), j); // j * 3
+                MD_SIMD_FLOAT delx       = xtmp - simd_real_gather(j3,
+                                                &(atom->x[0]),
+                                                sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT dely       = ytmp - simd_real_gather(j3,
+                                                &(atom->x[1]),
+                                                sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT delz       = ztmp - simd_real_gather(j3,
+                                                &(atom->x[2]),
+                                                sizeof(MD_FLOAT));
+#else
+                MD_SIMD_FLOAT delx = xtmp -
+                                     simd_real_gather(j, atom->x, sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT dely = ytmp -
+                                     simd_real_gather(j, atom->y, sizeof(MD_FLOAT));
+                MD_SIMD_FLOAT delz = ztmp -
+                                     simd_real_gather(j, atom->z, sizeof(MD_FLOAT));
+#endif
+                MD_SIMD_FLOAT rsq        = simd_real_fma(delx,
+                    delx,
+                    simd_real_fma(dely, dely, simd_real_mul(delz, delz)));
+                MD_SIMD_MASK cutoff_mask = simd_mask_and(mask_numneighs,
+                    simd_mask_cond_lt(rsq, cutforcesq_vec));
+                MD_SIMD_FLOAT sr2        = simd_real_reciprocal(rsq);
+                MD_SIMD_FLOAT sr6        = simd_real_mul(sr2,
+                    simd_real_mul(sr2, simd_real_mul(sr2, sigma6_vec)));
+                MD_SIMD_FLOAT force      = simd_real_mul(c48_vec,
+                    simd_real_mul(sr6,
+                        simd_real_mul(simd_real_sub(sr6, c05_vec),
+                            simd_real_mul(sr2, eps_vec))));
+
+                // Compute force components
+                MD_SIMD_FLOAT fx_tmp = simd_real_masked_add(simd_real_zero(), 
+                    simd_real_mul(delx, force), cutoff_mask);
+                MD_SIMD_FLOAT fy_tmp = simd_real_masked_add(simd_real_zero(), 
+                    simd_real_mul(dely, force), cutoff_mask);
+                MD_SIMD_FLOAT fz_tmp = simd_real_masked_add(simd_real_zero(), 
+                    simd_real_mul(delz, force), cutoff_mask);
+
+                // Accumulate forces for atom i
+                fix = simd_real_add(fix, fx_tmp);
+                fiy = simd_real_add(fiy, fy_tmp);
+                fiz = simd_real_add(fiz, fz_tmp);
+
+                // Store SIMD results to temporary arrays for Newton's third law updates
+                simd_real_store(tmp_fx, fx_tmp);
+                simd_real_store(tmp_fy, fy_tmp);
+                simd_real_store(tmp_fz, fz_tmp);
+                simd_real_store(tmp_delx, delx);
+                simd_real_store(tmp_dely, dely);
+                simd_real_store(tmp_delz, delz);
+                simd_i32_store(tmp_j, j);
+
+                // Apply Newton's third law for each neighbor (if local or using shell method)
+                int num_valid = (numneighs - k) < VECTOR_WIDTH ? (numneighs - k) : VECTOR_WIDTH;
+                for (int lane = 0; lane < num_valid; lane++) {
+                    int jj = tmp_j[lane];
+                    if ((param->half_neigh && jj < Nlocal) || param->method) {
+                        atom_fx(jj) -= tmp_fx[lane];
+                        atom_fy(jj) -= tmp_fy[lane];
+                        atom_fz(jj) -= tmp_fz[lane];
+                    }
+                }
             }
 
             atom_fx(i) += simd_real_h_reduce_sum(fix);

@@ -184,6 +184,10 @@ static inline MD_SIMD_INT simd_i32_load(const int* m)
 {
     return _mm_load_si128((__m128i const*)m);
 }
+static inline void simd_i32_store(int* m, MD_SIMD_INT a)
+{
+    _mm_store_si128((__m128i*)m, a);
+}
 static inline MD_SIMD_INT simd_i32_mask_load(const int* m, MD_SIMD_MASK k)
 {
     return simd_i32_load(m) & _mm256_cvtpd_epi32(k);
@@ -212,5 +216,19 @@ static inline MD_SIMD_FLOAT simd_real_gather(
         return _mm256_i32gather_pd(base, vidx, 4);
     } else {
         return _mm256_i32gather_pd(base, vidx, 8);
+    }
+}
+
+static inline MD_SIMD_INT simd_i32_gather(
+    MD_SIMD_INT vidx, int* base, const int scale)
+{
+    if (scale == 1) {
+        return _mm256_i32gather_epi32(base, vidx, 1);
+    } else if (scale == 2) {
+        return _mm256_i32gather_epi32(base, vidx, 2);
+    } else if (scale == 4) {
+        return _mm256_i32gather_epi32(base, vidx, 4);
+    } else {
+        return _mm256_i32gather_epi32(base, vidx, 8);
     }
 }

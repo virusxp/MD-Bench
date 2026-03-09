@@ -180,6 +180,11 @@ static inline MD_SIMD_INT simd_i32_load(const int* m)
     return _mm512_load_si512((const MD_SIMD_INT*)m);
 }
 
+static inline void simd_i32_store(int* m, MD_SIMD_INT a)
+{
+    _mm512_store_si512((MD_SIMD_INT*)m, a);
+}
+
 static inline MD_SIMD_FLOAT simd_real_gather(
     MD_SIMD_INT vidx, MD_FLOAT* base, const int scale)
 {
@@ -191,5 +196,19 @@ static inline MD_SIMD_FLOAT simd_real_gather(
         return _mm512_i32gather_ps(vidx, base, 4);
     } else {
         return _mm512_i32gather_ps(vidx, base, 8);
+    }
+}
+
+static inline MD_SIMD_INT simd_i32_gather(
+    MD_SIMD_INT vidx, int* base, const int scale)
+{
+    if (scale == 1) {
+        return _mm512_i32gather_epi32(vidx, base, 1);
+    } else if (scale == 2) {
+        return _mm512_i32gather_epi32(vidx, base, 2);
+    } else if (scale == 4) {
+        return _mm512_i32gather_epi32(vidx, base, 4);
+    } else {
+        return _mm512_i32gather_epi32(vidx, base, 8);
     }
 }

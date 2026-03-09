@@ -1,5 +1,5 @@
 # Compiler tool chain (GCC/CLANG/ICC/ICX/ONEAPI/NVCC/HIPCC)
-TOOLCHAIN ?= NVCC
+TOOLCHAIN ?= ICX
 # ISA of instruction code (X86/ARM)
 ISA ?= X86
 # Instruction set for instrinsic kernels (NONE/<X86-SIMD>/<ARM-SIMD>)
@@ -11,9 +11,9 @@ OPT_SCHEME ?= verletlist
 # Enable likwid (true or false)
 ENABLE_LIKWID ?= false
 # Enable OpenMP parallelization (true or false)
-ENABLE_OPENMP ?= false
+ENABLE_OPENMP ?= true
 # Enable MPI parallelization
-ENABLE_MPI ?= false
+ENABLE_MPI ?= true
 # SP or DP
 DATA_TYPE ?= DP
 # AOS or SOA
@@ -35,10 +35,6 @@ MEM_TRACER ?= false
 INDEX_TRACER ?= false
 # Compute statistics
 COMPUTE_STATS ?= false
-
-# Configurations for verletlist optimization scheme
-# Use omp simd pragma when running with half neighbor-lists
-ENABLE_OMP_SIMD ?= true
 
 # Configurations for clusterpair optimization scheme
 # Cluster pair kernel variant (auto/4xN/2xNN/gpusimple)
@@ -112,7 +108,7 @@ else
         __ISA_AVX_FMA__=true
         __SIMD_WIDTH_DBL__=4
     else ifeq ($(strip $(SIMD)),AVX2)
-        #__SIMD_KERNEL__=true
+        __SIMD_KERNEL__=true
         __ISA_AVX2__=true
         __SIMD_WIDTH_DBL__=4
     else ifeq ($(strip $(SIMD)),AVX512)
@@ -230,10 +226,6 @@ endif
 
 ifeq ($(strip $(__ISA_SVE2__)),true)
     DEFINES += -D__ISA_SVE2__
-endif
-
-ifeq ($(strip $(ENABLE_OMP_SIMD)),true)
-    DEFINES += -DENABLE_OMP_SIMD
 endif
 
 ifeq ($(strip $(OPT_SCHEME)),clusterpair)

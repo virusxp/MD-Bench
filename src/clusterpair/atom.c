@@ -902,6 +902,7 @@ void growPbc(Atom* atom) {
 }
 
 void packForward(Atom* atom, int nc, int* list, MD_FLOAT* buf, int* pbc) {
+    #pragma omp parallel for schedule(runtime)
     for (int i = 0; i < nc; i++) {
         int cj          = list[i];
         int cj_vec_base = CJ_VECTOR_BASE_INDEX(cj);
@@ -926,6 +927,7 @@ void packForward(Atom* atom, int nc, int* list, MD_FLOAT* buf, int* pbc) {
 }
 
 void unpackForward(Atom* atom, int nc, int c0, MD_FLOAT* buf) {
+    #pragma omp parallel for schedule(runtime)
     for (int i = 0; i < nc; i++) {
         int cj          = c0 + i;
         int cj_vec_base = CJ_VECTOR_BASE_INDEX(cj);

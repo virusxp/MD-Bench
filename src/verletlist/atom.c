@@ -778,6 +778,7 @@ void freeAtom(Atom* atom) {
 void packForward(Atom* atom, int n, int* list, MD_FLOAT* buf, int* pbc) {
     int i, j;
 
+    #pragma omp parallel for private(i, j) schedule(runtime)
     for (i = 0; i < n; i++) {
         j        = list[i];
         buf_x(i) = atom_x(j) + pbc[0] * atom->mybox.xprd;
@@ -787,6 +788,7 @@ void packForward(Atom* atom, int n, int* list, MD_FLOAT* buf, int* pbc) {
 }
 
 void unpackForward(Atom* atom, int n, int first, MD_FLOAT* buf) {
+    #pragma omp parallel for schedule(runtime)
     for (int i = 0; i < n; i++) {
         atom_x((first + i)) = buf_x(i);
         atom_y((first + i)) = buf_y(i);

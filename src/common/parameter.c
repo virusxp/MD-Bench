@@ -290,10 +290,10 @@ void printParameter(Parameter* param) {
         nthreads = omp_get_max_threads();
     }
 
-    fprintf(stdout, "  OpenMP threads:      %d\n", nthreads);
-    fprintf(stdout, "  OpenMP schedule:     (%s,%d)\n", schedType, chunkSize);
+    fprintf(stdout, "  OpenMP threads:                    %d\n", nthreads);
+    fprintf(stdout, "  OpenMP schedule:                   (%s,%d)\n", schedType, chunkSize);
 #else
-    fprintf(stdout, "  OpenMP threads:      1 (not compiled)\n");
+    fprintf(stdout, "  OpenMP threads:                    1 (not compiled)\n");
 #endif
 
     fprintf(stdout, "-------------------------------------------------------------------------------\n");

@@ -29,6 +29,7 @@ IntegrationFunction finalIntegrate   = finalIntegrateCPU;
 void initialIntegrateCPU(Parameter* param, Atom* atom) {
     DEBUG_MESSAGE("cpuInitialIntegrate start\n");
 
+    #pragma omp parallel for schedule(runtime)
     for (int ci = 0; ci < atom->Nclusters_local; ci++) {
         int ciVecBase = CI_VECTOR3_BASE_INDEX(ci);
         MD_FLOAT* ciX = &atom->cl_x[ciVecBase];
@@ -67,6 +68,7 @@ void initialIntegrateCPU(Parameter* param, Atom* atom) {
 void finalIntegrateCPU(Parameter* param, Atom* atom) {
     DEBUG_MESSAGE("cpuFinalIntegrate start\n");
 
+    #pragma omp parallel for schedule(runtime)
     for (int ci = 0; ci < atom->Nclusters_local; ci++) {
         int ciVecBase = CI_VECTOR3_BASE_INDEX(ci);
         MD_FLOAT* ciV = &atom->cl_v[ciVecBase];

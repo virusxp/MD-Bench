@@ -150,7 +150,7 @@ void createAtom(Atom* atom, Parameter* param) {
     int oy        = 0;
     int oz        = 0;
     int subboxdim = 8;
-     
+
     if(me == 0 && param->setup) {
         while (oz * subboxdim <= khi) {
             k = oz * subboxdim + sz;
@@ -183,7 +183,7 @@ void createAtom(Atom* atom, Parameter* param) {
                     if (atom->Nlocal == atom->Nmax) {
                         growAtom(atom);
                     }
-                                           
+
                     atom_x(atom->Nlocal)     = xtmp;                 
                     atom_y(atom->Nlocal)     = ytmp;
                     atom_z(atom->Nlocal)     = ztmp;
@@ -805,6 +805,42 @@ void growClusters(Atom* atom, int super_clustering) {
         atom->Nclusters_max * CLUSTER_M * SCLUSTER_SIZE  * sizeof(int),
         nold * CLUSTER_M * SCLUSTER_SIZE * sizeof(int));
 
+    // NUMA-aware first-touch initialization for newly allocated memory
+    #ifdef _OPENMP
+    #pragma omp parallel
+    {
+        #pragma omp for schedule(runtime) nowait
+        for (int ci = 0; ci < atom->Nclusters_max; ci++) {
+            int ci_vec_base = ci * CLUSTER_M * SCLUSTER_SIZE * 3;
+            for (int idx = 0; idx < CLUSTER_M * SCLUSTER_SIZE * 3; idx++) {
+                atom->cl_x[ci_vec_base + idx] = 0.0;
+                atom->cl_f[ci_vec_base + idx] = 0.0;
+                atom->cl_v[ci_vec_base + idx] = 0.0;
+            }
+        }
+
+        #pragma omp for schedule(runtime) nowait
+        for (int ci = 0; ci < atom->Nclusters_max; ci++) {
+            int ci_sca_base = ci * CLUSTER_M * SCLUSTER_SIZE;
+            for (int idx = 0; idx < CLUSTER_M * SCLUSTER_SIZE; idx++) {
+                atom->cl_t[ci_sca_base + idx] = 0;
+            }
+        }
+
+        #pragma omp for schedule(runtime)
+        for (int ci = 0; ci < atom->Nclusters_max; ci++) {
+            atom->cluster_bin[ci] = 0;
+            atom->iclusters[ci * SCLUSTER_SIZE].natoms = 0;
+            atom->iclusters[ci * SCLUSTER_SIZE].bbminx = 0.0;
+            atom->iclusters[ci * SCLUSTER_SIZE].bbmaxx = 0.0;
+            atom->iclusters[ci * SCLUSTER_SIZE].bbminy = 0.0;
+            atom->iclusters[ci * SCLUSTER_SIZE].bbmaxy = 0.0;
+            atom->iclusters[ci * SCLUSTER_SIZE].bbminz = 0.0;
+            atom->iclusters[ci * SCLUSTER_SIZE].bbmaxz = 0.0;
+        }
+    }
+    #endif
+
     if(super_clustering) {
         atom->siclusters    = (SuperCluster*)reallocate(atom->siclusters,
             ALIGNMENT,
@@ -927,7 +963,7 @@ int packGhost(Atom* atom, int cj, MD_FLOAT* buf, int* pbc) {
             MD_FLOAT xtmp = cj_x[CL_X_INDEX(cjj)] + pbc[0] * atom->mybox.xprd;
             MD_FLOAT ytmp = cj_x[CL_Y_INDEX(cjj)] + pbc[1] * atom->mybox.yprd;
             MD_FLOAT ztmp = cj_x[CL_Z_INDEX(cjj)] + pbc[2] * atom->mybox.zprd;
-        
+
             buf[m++] = xtmp;
             buf[m++] = ytmp;
             buf[m++] = ztmp;

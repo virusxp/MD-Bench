@@ -713,6 +713,38 @@ void growAtom(Atom* atom) {
     REALLOC(fz, MD_FLOAT, atom->Nmax * sizeof(MD_FLOAT), nold * sizeof(MD_FLOAT));
 #endif
     REALLOC(type, int, atom->Nmax * sizeof(int), nold * sizeof(int));
+
+    // NUMA-aware first-touch initialization for newly allocated memory
+    #ifdef _OPENMP
+    #pragma omp parallel
+    {
+        #pragma omp for schedule(runtime) nowait
+        for (int i = 0; i < atom->Nmax; i++) {
+            atom_x(i) = 0.0;
+            atom_y(i) = 0.0;
+            atom_z(i) = 0.0;
+        }
+
+        #pragma omp for schedule(runtime) nowait
+        for (int i = 0; i < atom->Nmax; i++) {
+            atom_vx(i) = 0.0;
+            atom_vy(i) = 0.0;
+            atom_vz(i) = 0.0;
+        }
+
+        #pragma omp for schedule(runtime) nowait
+        for (int i = 0; i < atom->Nmax; i++) {
+            atom_fx(i) = 0.0;
+            atom_fy(i) = 0.0;
+            atom_fz(i) = 0.0;
+        }
+
+        #pragma omp for schedule(runtime)
+        for (int i = 0; i < atom->Nmax; i++) {
+            atom->type[i] = 0;
+        }
+    }
+    #endif
 }
 /* MPI added*/
 

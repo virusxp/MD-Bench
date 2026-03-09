@@ -618,9 +618,7 @@ void setupGrid(Grid* grid, Atom* atom, Parameter* param) {
     }
 
     MPI_Barrier(world);
-    if(param->input_file != NULL) {
-        discardAtomsOutsideSubdomainBox(atom);
-    }
+    discardAtomsOutsideSubdomainBox(atom);
 
     //printGrid(grid);
     if (!param->balance) {

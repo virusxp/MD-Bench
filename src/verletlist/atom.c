@@ -146,7 +146,7 @@ void createAtom(Atom* atom, Parameter* param) {
     int oz        = 0;
     int subboxdim = 8;
 
-    if (me == 0 && param->setup) {
+    if (param->setup) {
         while (oz * subboxdim <= khi) {
             k = oz * subboxdim + sz;
             j = oy * subboxdim + sy;

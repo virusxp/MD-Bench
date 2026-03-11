@@ -212,3 +212,9 @@ static inline MD_SIMD_INT simd_i32_gather(
         return _mm512_i32gather_epi32(vidx, base, 8);
     }
 }
+static inline void simd_real_masked_scatter_sub(
+    MD_FLOAT* base, MD_SIMD_INT vidx, MD_SIMD_FLOAT v, MD_SIMD_MASK mask)
+{
+    MD_SIMD_FLOAT old = _mm512_mask_i32gather_ps(simd_real_zero(), mask, vidx, base, sizeof(MD_FLOAT));
+    _mm512_mask_i32scatter_ps(base, mask, vidx, _mm512_sub_ps(old, v), sizeof(MD_FLOAT));
+}

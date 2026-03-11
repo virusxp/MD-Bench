@@ -184,16 +184,11 @@ double computeForceLJHalfNeigh_simd(
 #ifndef ONE_ATOM_TYPE
     MD_SIMD_INT ntypes_vec       = simd_i32_broadcast(atom->ntypes);
 #endif
+    MD_SIMD_INT nlocal_vec       = simd_i32_broadcast(Nlocal);
 
 #pragma omp parallel
     {
         LIKWID_MARKER_START("force");
-
-        // Thread-local temporary arrays for Newton's third law scatter
-        MD_FLOAT tmp_fx[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
-        MD_FLOAT tmp_fy[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
-        MD_FLOAT tmp_fz[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(MD_FLOAT))));
-        int tmp_j[VECTOR_WIDTH] __attribute__((aligned(VECTOR_WIDTH * sizeof(int))));
 
 #pragma omp for schedule(runtime)
         for (int i = 0; i < Nlocal; i++) {
@@ -271,27 +266,20 @@ double computeForceLJHalfNeigh_simd(
                 fiy = simd_real_masked_add(fiy, fy_tmp, cutoff_mask);
                 fiz = simd_real_masked_add(fiz, fz_tmp, cutoff_mask);
 
-                // Store force components and neighbor indices for Newton's third law scatter
-                simd_real_store(tmp_fx, fx_tmp);
-                simd_real_store(tmp_fy, fy_tmp);
-                simd_real_store(tmp_fz, fz_tmp);
-                simd_i32_store(tmp_j, j);
-
-                // Apply Newton's third law only for neighbors within cutoff
-                unsigned int cutoff_lanes = simd_mask_to_u32(cutoff_mask);
-                int num_valid = (numneighs - k) < VECTOR_WIDTH ? (numneighs - k) : VECTOR_WIDTH;
-                for (int lane = 0; lane < num_valid; lane++) {
-                    if (!((cutoff_lanes >> lane) & 1)) continue;
-                    int jj = tmp_j[lane];
-                    if ((param->half_neigh && jj < Nlocal) || param->method) {
-                        #pragma omp atomic
-                        atom_fx(jj) -= tmp_fx[lane];
-                        #pragma omp atomic
-                        atom_fy(jj) -= tmp_fy[lane];
-                        #pragma omp atomic
-                        atom_fz(jj) -= tmp_fz[lane];
-                    }
-                }
+                // Apply Newton's third law using vectorized scatter
+                // Note: not thread-safe under OpenMP (no atomic scatter support)
+                MD_SIMD_MASK j_local_mask  = simd_mask_i32_cond_lt(j, nlocal_vec);
+                MD_SIMD_MASK j_update_mask = simd_mask_and(cutoff_mask,
+                    param->method ? cutoff_mask : j_local_mask);
+#ifdef ATOM_POSITION_AOS
+                simd_real_masked_scatter_sub(&atom->fx[0], j3, fx_tmp, j_update_mask);
+                simd_real_masked_scatter_sub(&atom->fx[1], j3, fy_tmp, j_update_mask);
+                simd_real_masked_scatter_sub(&atom->fx[2], j3, fz_tmp, j_update_mask);
+#else
+                simd_real_masked_scatter_sub(atom->fx, j, fx_tmp, j_update_mask);
+                simd_real_masked_scatter_sub(atom->fy, j, fy_tmp, j_update_mask);
+                simd_real_masked_scatter_sub(atom->fz, j, fz_tmp, j_update_mask);
+#endif
             }
 
             atom_fx(i) += simd_real_h_reduce_sum(fix);

@@ -233,3 +233,17 @@ static inline MD_SIMD_INT simd_i32_gather(
         return _mm256_i32gather_epi32(base, vidx, 8);
     }
 }
+// AVX2 has no hardware scatter; implement as scalar fallback
+static inline void simd_real_masked_scatter_sub(
+    MD_FLOAT* base, MD_SIMD_INT vidx, MD_SIMD_FLOAT v, MD_SIMD_MASK mask)
+{
+    unsigned int m = simd_mask_to_u32(mask);
+    MD_FLOAT vals[4] __attribute__((aligned(32)));
+    int idx[4] __attribute__((aligned(16)));
+    simd_real_store(vals, v);
+    simd_i32_store(idx, vidx);
+    if ((m >> 0) & 1) base[idx[0]] -= vals[0];
+    if ((m >> 1) & 1) base[idx[1]] -= vals[1];
+    if ((m >> 2) & 1) base[idx[2]] -= vals[2];
+    if ((m >> 3) & 1) base[idx[3]] -= vals[3];
+}

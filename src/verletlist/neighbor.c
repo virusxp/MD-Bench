@@ -618,7 +618,7 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor) {
             MD_FLOAT ztmp   = atom_z(iatom);
             int ibin        = coord2bin(xtmp, ytmp, ztmp);
 
-#ifdef EXPLICIT_TYPES
+#ifndef ONE_ATOM_TYPE
             int type_i = atom->type[iatom];
 #endif
 
@@ -640,7 +640,7 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor) {
                     MD_FLOAT delz = ztmp - atom_z(jatom);
                     MD_FLOAT rsq  = delx * delx + dely * dely + delz * delz;
 
-#ifdef EXPLICIT_TYPES
+#ifndef ONE_ATOM_TYPE
                     int type_j = atom->type[jatom];
                     const MD_FLOAT cutoff =
                         atom->cutneighsq[type_i * atom->ntypes + type_j];

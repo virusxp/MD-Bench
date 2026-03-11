@@ -206,7 +206,7 @@ double computeForceLJHalfNeigh(Parameter* param, Atom* atom, Neighbor* neighbor,
 void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor) {
     DEBUG_MESSAGE("computeForceGhostShell begin\n");
     int Nshell = neighbor->Nshell;
-#ifndef EXPLICIT_TYPES
+#ifdef ONE_ATOM_TYPE
     MD_FLOAT cutforcesq = param->cutforce * param->cutforce;
     MD_FLOAT sigma6     = param->sigma6;
     MD_FLOAT epsilon    = param->epsilon;
@@ -225,7 +225,7 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor) {
         MD_FLOAT fiy  = 0;
         MD_FLOAT fiz  = 0;
 
-#ifdef EXPLICIT_TYPES
+#ifndef ONE_ATOM_TYPE
         const int type_i = atom->type[i];
 #endif
 

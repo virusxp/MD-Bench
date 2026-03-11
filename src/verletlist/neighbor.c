@@ -267,7 +267,7 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
         if (neighbor->numneigh) free(neighbor->numneigh);
         if (neighbor->neighbors) free(neighbor->neighbors);
         neighbor->numneigh  = (int*)malloc(nmax * sizeof(int));
-        neighbor->neighbors = (int*)malloc(nmax * neighbor->maxneighs * sizeof(int*));
+        neighbor->neighbors = (int*)malloc(nmax * neighbor->maxneighs * sizeof(int));
     }
 
     /* bin local & ghost atoms */

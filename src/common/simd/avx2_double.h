@@ -190,7 +190,8 @@ static inline void simd_i32_store(int* m, MD_SIMD_INT a)
 }
 static inline MD_SIMD_INT simd_i32_mask_load(const int* m, MD_SIMD_MASK k)
 {
-    return simd_i32_load(m) & _mm256_cvtpd_epi32(k);
+    __m128i imask = _mm256_cvtpd_epi32(k);
+    return _mm_maskload_epi32(m, imask);
 }
 
 static inline MD_SIMD_INT simd_i32_load_h_duplicate(const int* m)

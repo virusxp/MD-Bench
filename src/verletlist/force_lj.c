@@ -226,7 +226,7 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor) {
         MD_FLOAT fiz  = 0;
 
 #ifndef ONE_ATOM_TYPE
-        const int type_i = atom->type[i];
+        const int type_i = atom->type[iatom];
 #endif
 
         for (int k = 0; k < numneigh; k++) {
@@ -235,6 +235,14 @@ void computeForceGhostShell(Parameter* param, Atom* atom, Neighbor* neighbor) {
             MD_FLOAT dely = ytmp - atom_y(jatom);
             MD_FLOAT delz = ztmp - atom_z(jatom);
             MD_FLOAT rsq  = delx * delx + dely * dely + delz * delz;
+
+#ifndef ONE_ATOM_TYPE
+            const int type_j          = atom->type[jatom];
+            const int type_ij         = type_i * atom->ntypes + type_j;
+            const MD_FLOAT cutforcesq = atom->cutforcesq[type_ij];
+            const MD_FLOAT sigma6     = atom->sigma6[type_ij];
+            const MD_FLOAT epsilon    = atom->epsilon[type_ij];
+#endif
 
             if (rsq < cutforcesq) {
                 MD_FLOAT sr2   = num1 / rsq;

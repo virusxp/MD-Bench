@@ -526,7 +526,7 @@ int readAtom_dmp(Atom* atom, Parameter* param) {
                     atom_vx(atom_id)    = atof(strtok(NULL, " "));
                     atom_vy(atom_id)    = atof(strtok(NULL, " "));
                     atom_vz(atom_id)    = atof(strtok(NULL, " "));
-                    atom->ntypes        = MAX(atom->type[atom_id], atom->ntypes);
+                    atom->ntypes        = MAX(atom->type[atom_id] + 1, atom->ntypes);
                     read_atoms++;
                 }
             } else {
@@ -630,7 +630,7 @@ int readAtom_in(Atom* atom, Parameter* param) {
         atom_vy(atom_id)    = atof(strtok(NULL, " "));
         atom_vz(atom_id)    = atof(strtok(NULL, " "));
         atom->type[atom_id] = 0;
-        atom->ntypes        = MAX(atom->type[atom_id], atom->ntypes);
+        atom->ntypes        = MAX(atom->type[atom_id] + 1, atom->ntypes);
         atom_id++;
     }
 

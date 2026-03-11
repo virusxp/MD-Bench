@@ -544,7 +544,7 @@ int readAtomDmp(Atom* atom, Parameter* param) {
                     atom->vx[atomId]   = atof(strtok(NULL, " "));
                     atom->vy[atomId]   = atof(strtok(NULL, " "));
                     atom->vz[atomId]   = atof(strtok(NULL, " "));
-                    atom->ntypes       = MAX(atom->type[atomId], atom->ntypes);
+                    atom->ntypes       = MAX(atom->type[atomId] + 1, atom->ntypes);
                     readAtoms++;
                 }
             } else {
@@ -1044,7 +1044,7 @@ int unpackGhost(Parameter *param, Atom* atom, int cj, MD_FLOAT* buf) {
         cj_x[CL_X_INDEX(cjj)]       = INF;
         cj_x[CL_Y_INDEX(cjj)]       = INF;
         cj_x[CL_Z_INDEX(cjj)]       = INF;
-        atom->cl_t[cj_sca_base + cjj] = -1;
+        atom->cl_t[cj_sca_base + cjj] = 0;
         m += 4;
     }
 

@@ -30,7 +30,8 @@ echo "Running argon regression with binary: ${BIN}"
 echo "Simulation finished, parsing thermo output..."
 
 # Grab last thermo line (temperature and pressure are printed after 'step').
-last_tp_line="$(grep -E '^[0-9]+\s+[0-9.eE+-]+' "${OUT_LOG}" | tail -n 1 || true)"
+# Updated pattern to handle leading whitespace
+last_tp_line="$(grep -E '^[[:space:]]*[0-9]+[[:space:]]+[0-9.eE+-]+' "${OUT_LOG}" | tail -n 1 || true)"
 
 if [[ -z "${last_tp_line}" ]]; then
     echo "Could not find thermo line in output; check that MD-Bench printed stats." >&2

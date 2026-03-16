@@ -8,6 +8,15 @@
 #define __PARAMETER_H_
 
 #include <stdint.h>
+
+// Portable vector types compatible with CUDA/HIP
+#if !defined(__CUDACC__) && !defined(__HIPCC__)
+typedef struct { float x, y, z; } float3;
+typedef struct { float x, y, z, w; } float4;
+typedef struct { double x, y, z; } double3;
+typedef struct { double x, y, z, w; } double4;
+#endif
+
 #if PRECISION == 1
 #define MD_FLOAT  float
 #define MD_FLOAT3 float3

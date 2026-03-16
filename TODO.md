@@ -1,9 +1,7 @@
-- Allow to resort atoms at a separate frequency independent of the neighboring
-frequency
-- Integrate and fix Super-Cluster GPU code
-- Consider to also output performance in computed ns per day (a common metric in
-the MD world)
-
+* Apply Lennard-Jones Geometric Combination Rule
+* Define frequency to sort atoms (independent neighboring frequency)
+* Evaluate Lennard-Jones (and Coloumb) force components to be integrated into short-range kernels
+* Double cut-off method with pruning (inner, outer)
 * Implement compression of atoms that need to be computed, only execute
 arithmetic when register is full
-
+* Implement LJ case from https://ieeexplore.ieee.org/document/11370954 for ARM and x86

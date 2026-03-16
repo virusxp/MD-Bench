@@ -53,7 +53,7 @@ echo "Running Cluster-pair argon testcase with ${CP_BIN}"
 
 get_last_tp() {
   local file="$1"
-  grep -E '^[0-9]+\s+[0-9.eE+-]+' "${file}" | tail -n 1 || true
+  grep -E '^[[:space:]]*[0-9]+[[:space:]]+[0-9.eE+-]+' "${file}" | tail -n 1 || true
 }
 
 vl_line="$(get_last_tp "${VL_LOG}")"

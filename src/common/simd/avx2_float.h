@@ -213,7 +213,34 @@ static inline void simd_real_masked_scatter_sub(
     }
 }
 
+static inline MD_SIMD_INT simd_i32_zero(void) { return _mm256_setzero_si256(); }
+static inline MD_SIMD_INT simd_i32_seq(void)
+{
+    return _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
+}
 static inline MD_SIMD_INT simd_i32_add(MD_SIMD_INT a, MD_SIMD_INT b)
 {
     return _mm256_add_epi32(a, b);
+}
+static inline MD_SIMD_INT simd_i32_mul(MD_SIMD_INT a, MD_SIMD_INT b)
+{
+    return _mm256_mullo_epi32(a, b);
+}
+static inline MD_SIMD_INT simd_i32_mask_load(const int* m, MD_SIMD_MASK k)
+{
+    // AVX2 doesn't have native masked load for int arrays; use maskload with converted mask
+    unsigned int u32_mask = simd_mask_to_u32(k);
+    __m256i imask = _mm256_set1_epi32(-1);
+    // Create integer mask from bitmask
+    __m256i index = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+    __m256i broadcast = _mm256_set1_epi32(u32_mask);
+    __m256i shift = _mm256_sllv_epi32(_mm256_set1_epi32(1), index);
+    imask = _mm256_cmpgt_epi32(_mm256_and_si256(broadcast, shift), _mm256_setzero_si256());
+    return _mm256_maskload_epi32(m, imask);
+}
+static inline MD_SIMD_MASK simd_mask_i32_cond_lt(MD_SIMD_INT a, MD_SIMD_INT b)
+{
+    // AVX2 returns vector mask; cast to float mask type
+    __m256i imask = _mm256_cmpgt_epi32(b, a);
+    return _mm256_castsi256_ps(imask);
 }

@@ -212,3 +212,38 @@ static inline MD_SIMD_INT simd_i32_add(MD_SIMD_INT a, MD_SIMD_INT b)
 
     return _mm256_set_m128i(high_add, low_add);
 }
+
+static inline MD_SIMD_INT simd_i32_zero(void) { return _mm256_setzero_si256(); }
+static inline MD_SIMD_INT simd_i32_seq(void)
+{
+    return _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
+}
+static inline MD_SIMD_INT simd_i32_mul(MD_SIMD_INT a, MD_SIMD_INT b)
+{
+    __m128i low_mul  = _mm_mullo_epi32(_mm256_extractf128_si256(a, 0),
+        _mm256_extractf128_si256(b, 0));
+    __m128i high_mul = _mm_mullo_epi32(_mm256_extractf128_si256(a, 1),
+        _mm256_extractf128_si256(b, 1));
+    return _mm256_set_m128i(high_mul, low_mul);
+}
+static inline MD_SIMD_INT simd_i32_mask_load(const int* m, MD_SIMD_MASK k)
+{
+    // AVX doesn't have masked load; emulate with scalar fallback
+    unsigned int u32_mask = simd_mask_to_u32(k);
+    int result[8] __attribute__((aligned(32))) = {0};
+    for (int i = 0; i < 8; i++) {
+        if ((u32_mask >> i) & 1) {
+            result[i] = m[i];
+        }
+    }
+    return _mm256_load_si256((const __m256i*)result);
+}
+static inline MD_SIMD_MASK simd_mask_i32_cond_lt(MD_SIMD_INT a, MD_SIMD_INT b)
+{
+    __m128i low_cmp  = _mm_cmplt_epi32(_mm256_extractf128_si256(a, 0),
+        _mm256_extractf128_si256(b, 0));
+    __m128i high_cmp = _mm_cmplt_epi32(_mm256_extractf128_si256(a, 1),
+        _mm256_extractf128_si256(b, 1));
+    __m256i imask = _mm256_set_m128i(high_cmp, low_cmp);
+    return _mm256_castsi256_ps(imask);
+}

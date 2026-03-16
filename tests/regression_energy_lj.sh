@@ -27,7 +27,7 @@ echo "Running LJ energy regression with binary: ${BIN}"
 
 echo "Simulation finished, parsing thermo output..."
 
-thermo_lines="$(grep -E '^[0-9]+\s+[0-9.eE+-]+' "${OUT_LOG}" || true)"
+thermo_lines="$(grep -E '^[[:space:]]*[0-9]+[[:space:]]+[0-9.eE+-]+' "${OUT_LOG}" || true)"
 if [[ -z "${thermo_lines}" ]]; then
     echo "Could not find thermo lines in output; check that MD-Bench printed stats." >&2
     echo "Full log at: ${OUT_LOG}" >&2

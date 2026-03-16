@@ -176,6 +176,10 @@ static inline MD_SIMD_INT simd_i32_load(const int* m)
 {
     return _mm256_load_si256((const MD_SIMD_INT*)m);
 }
+static inline void simd_i32_store(int* m, MD_SIMD_INT a)
+{
+    _mm256_store_si256((MD_SIMD_INT*)m, a);
+}
 static inline MD_SIMD_INT simd_i32_add(MD_SIMD_INT a, MD_SIMD_INT b)
 {
     return _mm256_add_epi32(a, b);
@@ -208,14 +212,41 @@ static inline MD_SIMD_INT simd_i32_load_h_dual_scaled(const int* m, int scale)
 static inline MD_SIMD_FLOAT simd_real_gather(
     MD_SIMD_INT vidx, MD_FLOAT* base, const int scale)
 {
-    
-    switch (scale) {
-    case 1: return _mm512_i32gather_pd(vidx, base, 1);
-    case 2: return _mm512_i32gather_pd(vidx, base, 2);
-    case 4: return _mm512_i32gather_pd(vidx, base, 4);
-    case 8: return _mm512_i32gather_pd(vidx, base, 8);
-    default:
-        assert(!"invalid scale for gather");
-     }
-    //return _mm512_i32gather_pd(vidx, base, scale);
+    if (scale == 1) {
+        return _mm512_i32gather_pd(vidx, base, 1);
+    } else if (scale == 2) {
+        return _mm512_i32gather_pd(vidx, base, 2);
+    } else if (scale == 4) {
+        return _mm512_i32gather_pd(vidx, base, 4);
+    } else {
+        return _mm512_i32gather_pd(vidx, base, 8);
+    }
+}
+
+static inline MD_SIMD_INT simd_i32_gather(
+    MD_SIMD_INT vidx, int* base, const int scale)
+{
+    if (scale == 1) {
+        return _mm256_i32gather_epi32(base, vidx, 1);
+    } else if (scale == 2) {
+        return _mm256_i32gather_epi32(base, vidx, 2);
+    } else if (scale == 4) {
+        return _mm256_i32gather_epi32(base, vidx, 4);
+    } else {
+        return _mm256_i32gather_epi32(base, vidx, 8);
+    }
+}
+static inline void simd_real_masked_scatter_sub(
+    MD_FLOAT* base, MD_SIMD_INT vidx, MD_SIMD_FLOAT v, MD_SIMD_MASK mask)
+{
+    MD_FLOAT vals[8] __attribute__((aligned(64)));
+    int idx[8] __attribute__((aligned(32)));
+    simd_real_store(vals, v);
+    simd_i32_store(idx, vidx);
+    for (int i = 0; i < 8; i++) {
+        if ((mask >> i) & 1) {
+            _Pragma("omp atomic")
+            base[idx[i]] -= vals[i];
+        }
+    }
 }

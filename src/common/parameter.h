@@ -8,9 +8,20 @@
 #define __PARAMETER_H_
 
 #include <stdint.h>
+
+// Portable vector types compatible with CUDA/HIP
+#if !defined(__CUDACC__) && !defined(__HIPCC__)
+typedef struct { float x, y, z; } float3;
+typedef struct { float x, y, z, w; } float4;
+typedef struct { double x, y, z; } double3;
+typedef struct { double x, y, z, w; } double4;
+#endif
+
 #if PRECISION == 1
-#define MD_FLOAT float
-#define MD_UINT  unsigned int
+#define MD_FLOAT  float
+#define MD_FLOAT3 float3
+#define MD_FLOAT4 float4
+#define MD_UINT   unsigned int
 /*
 #ifdef USE_REFERENCE_KERNEL
 #define MD_SIMD_FLOAT float
@@ -18,8 +29,10 @@
 #endif
 */
 #else
-#define MD_FLOAT double
-#define MD_UINT  unsigned long long int
+#define MD_FLOAT  double
+#define MD_FLOAT3 double3
+#define MD_FLOAT4 double4
+#define MD_UINT   unsigned long long int
 /*
 #ifdef USE_REFERENCE_KERNEL
 #define MD_SIMD_FLOAT double
@@ -35,7 +48,6 @@ typedef struct {
     char* vtk_file;
     char* xtc_file;
     char* write_atom_file;
-    char* atom_file_name;
     MD_FLOAT epsilon;
     MD_FLOAT sigma;
     MD_FLOAT sigma6;
@@ -62,6 +74,7 @@ typedef struct {
     MD_FLOAT xlo, xhi, ylo, yhi, zlo, zhi;
     MD_FLOAT xprd, yprd, zprd;
     double proc_freq;
+    int super_clustering;
     char* eam_file;
     // MPI implementation
     int balance;

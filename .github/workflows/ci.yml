@@ -1,0 +1,139 @@
+name: MD-Bench CI
+
+on:
+  push:
+    branches:
+      - '**'          # run on all branches, including feature branches
+  pull_request:
+  workflow_dispatch:  # allow manual runs from the GitHub UI
+
+env:
+  ISA: X86
+  TOOLCHAIN: GCC
+
+jobs:
+  unit:
+    name: Unit tests (clusterpair AVX512 DP)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Probe CPU SIMD and compiler
+        id: probe
+        run: |
+          HAS_AVX512=$(grep -m1 -o 'avx512f' /proc/cpuinfo || true)
+          if [ -z "${HAS_AVX512}" ]; then
+            echo "has_avx512=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_avx512=true" >> $GITHUB_OUTPUT
+          fi
+
+          if command -v gcc >/dev/null 2>&1; then
+            echo "has_gcc=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_gcc=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run make test (clusterpair AVX512 DP)
+        if: steps.probe.outputs.has_gcc == 'true' && steps.probe.outputs.has_avx512 == 'true'
+        run: |
+          make clean
+          make TOOLCHAIN=${TOOLCHAIN} OPT_SCHEME=clusterpair SIMD=AVX512 DATA_TYPE=DP test
+
+      - name: Skip reason
+        if: steps.probe.outputs.has_gcc != 'true' || steps.probe.outputs.has_avx512 != 'true'
+        run: |
+          echo "Skipping unit tests: GCC or AVX512 not available on this runner."
+
+  regression:
+    name: Argon regression matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        opt_scheme: [verletlist, clusterpair]
+        simd: [AVX, AVX2, AVX512]
+        data_type: [SP, DP]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Probe CPU SIMD and compiler
+        id: probe
+        run: |
+          HAS_AVX=$(grep -m1 -o 'avx ' /proc/cpuinfo || true)
+          HAS_AVX2=$(grep -m1 -o 'avx2' /proc/cpuinfo || true)
+          HAS_AVX512=$(grep -m1 -o 'avx512f' /proc/cpuinfo || true)
+
+          case "${{ matrix.simd }}" in
+            AVX)
+              if [ -z "${HAS_AVX}" ]; then
+                echo "supported=false" >> $GITHUB_OUTPUT
+              else
+                echo "supported=true" >> $GITHUB_OUTPUT
+              fi
+              ;;
+            AVX2)
+              if [ -z "${HAS_AVX2}" ]; then
+                echo "supported=false" >> $GITHUB_OUTPUT
+              else
+                echo "supported=true" >> $GITHUB_OUTPUT
+              fi
+              ;;
+            AVX512)
+              if [ -z "${HAS_AVX512}" ]; then
+                echo "supported=false" >> $GITHUB_OUTPUT
+              else
+                echo "supported=true" >> $GITHUB_OUTPUT
+              fi
+              ;;
+          esac
+
+          if command -v gcc >/dev/null 2>&1; then
+            echo "has_gcc=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_gcc=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and run argon regression
+        if: steps.probe.outputs.supported == 'true' && steps.probe.outputs.has_gcc == 'true'
+        run: |
+          make clean
+          make TOOLCHAIN=${TOOLCHAIN} ISA=${ISA} OPT_SCHEME=${{ matrix.opt_scheme }} SIMD=${{ matrix.simd }} DATA_TYPE=${{ matrix.data_type }}
+
+          # Reconstruct binary name as in Makefile
+          if [ "${{ matrix.opt_scheme }}" = "verletlist" ]; then
+            OPT_TAG="VL"
+          else
+            OPT_TAG="CP-${CLUSTER_PAIR_KERNEL:-auto}"
+          fi
+
+          if [ "${{ matrix.simd }}" = "NONE" ]; then
+            TOOL_TAG="${TOOLCHAIN}-${ISA}"
+          else
+            TOOL_TAG="${TOOLCHAIN}-${ISA}-${{ matrix.simd }}"
+          fi
+
+          TAG="${OPT_TAG}-${TOOL_TAG}-${{ matrix.data_type }}"
+          BIN="./MDBench-${TAG}"
+          echo "Using binary ${BIN}"
+
+          chmod +x tests/sim_argon_regression.sh
+          ./tests/sim_argon_regression.sh "${BIN}"
+
+      - name: Skip reason
+        if: steps.probe.outputs.supported != 'true' || steps.probe.outputs.has_gcc != 'true'
+        run: |
+          echo "Skipping regression case opt_scheme=${{ matrix.opt_scheme }} simd=${{ matrix.simd }} data_type=${{ matrix.data_type }} due to missing SIMD or GCC on this runner."
+

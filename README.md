@@ -93,16 +93,13 @@ source directories and main routines are used
 - `ENABLE_LIKWID`: Turn on LIKWID instrumentation, the LIKWID library has to be available
 - `DATA_TYPE`: Switch between single precision and double precision floating
 point. This is controlled by defines.
-- `DATA_LAYOUT`: Switch between array-of-structure (AOS) and structure-of-array
+- `ATOM_DATA_LAYOUT`: Switch between array-of-structure (AOS) and structure-of-array
 (SOA) layout for atom positions and forces. Tradeoff between better cache
 utilisation and easier SIMD vectorization.
 - `DEBUG`: Enable additional debug output
 - `SORT_ATOMS`: Resort atoms to ensure that atoms that are nearby are also close
 to each other in the data structures
 - `ONE_ATOM_TYPE`: Simulate only one atom type and do not perform table lookup for parameters.
-- `ENABLE_OMP_SIMD`: This enforces the use of `#pragma omp simd` for the
-verletlist half-neighbour list force kernel. Without is the Intel compiler (at
-least ICC) refuses to do SIMD vectorization.
 - `USE_REFERENCE_VERSION`: Enforce usage of C implementation for clusterpair
 algorithm for validation
 - `USE_CUDA_HOST_MEMORY`: Enable pinned host memory for faster host-device transfers
@@ -148,8 +145,7 @@ neighbor list)
 For all variants you can switch between single precision and double precision
 and between AOS versus SOA data layouts using build time options. You can use
 the half neighbour list algorithm instead of the default full neighbour list by
-setting `-half 1`. To enforce SIMD vectorization for the half neighbour list
-algorithm you can set the option `ENABLE_OMP_SIMD=true`.
+setting `-half 1`.
 
 ### Lennard-Jones potential for solid copper
 

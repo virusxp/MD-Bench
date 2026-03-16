@@ -13,6 +13,10 @@
 #include <parameter.h>
 #include <util.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #define SMALL  1.0e-6
 #define FACTOR 0.999
 
@@ -24,7 +28,7 @@ BuildNeighborFunction buildNeighbor = buildNeighborCPU;
 
 MD_FLOAT xprd, yprd, zprd;
 MD_FLOAT bininvx, bininvy, bininvz;
-int mbinxlo, mbinylo, mbinzlo; //not used
+int mbinxlo, mbinylo, mbinzlo; // not used
 int nbinx, nbiny, nbinz;
 int mbinx, mbiny, mbinz; // n bins in x, y, z
 int* bincount;
@@ -55,22 +59,22 @@ static inline int skipNeigh(Atom* atom, int i, int j);
 /* exported subroutines */
 void initNeighbor(Neighbor* neighbor, Parameter* param)
 {
-    MD_FLOAT neighscale  = 5.0 / 6.0;
-    xprd                 = param->nx * param->lattice;
-    yprd                 = param->ny * param->lattice;
-    zprd                 = param->nz * param->lattice;
-    cutneigh             = param->cutneigh;
-    nbinx                = MAX(1,neighscale * param->nx);
-    nbiny                = MAX(1,neighscale * param->ny);
-    nbinz                = MAX(1,neighscale * param->nz);
-    nmax                 = 0;
-    atoms_per_bin        = 8;
-    stencil              = NULL;
-    bins                 = NULL;
-    bincount             = NULL;
-    neighbor->maxneighs  = 100;
-    neighbor->numneigh   = NULL;
-    neighbor->neighbors  = NULL;
+    MD_FLOAT neighscale = 5.0 / 6.0;
+    xprd                = param->nx * param->lattice;
+    yprd                = param->ny * param->lattice;
+    zprd                = param->nz * param->lattice;
+    cutneigh            = param->cutneigh;
+    nbinx               = MAX(1, neighscale * param->nx);
+    nbiny               = MAX(1, neighscale * param->ny);
+    nbinz               = MAX(1, neighscale * param->nz);
+    nmax                = 0;
+    atoms_per_bin       = 8;
+    stencil             = NULL;
+    bins                = NULL;
+    bincount            = NULL;
+    neighbor->maxneighs = 100;
+    neighbor->numneigh  = NULL;
+    neighbor->neighbors = NULL;
     //========== MPI =============
     method = param->method;
     if (method == halfShell || method == eightShell) {
@@ -153,7 +157,6 @@ void setupNeighbor(Parameter* param)
     pad_z = (int)(cutneigh * bininvz);
     while (pad_z * binsizez < FACTOR * cutneigh)
         pad_z++;
-    
 
     coord   = xlo - cutneigh - SMALL * xprd;
     mbinxlo = (int)(coord * bininvx);
@@ -181,7 +184,6 @@ void setupNeighbor(Parameter* param)
 
     mbinxlo = mbinxlo - 1;
     mbinxhi = mbinxhi + 1;
-    
     mbinylo = mbinylo - 1;
     mbinyhi = mbinyhi + 1;
 
@@ -206,16 +208,18 @@ void setupNeighbor(Parameter* param)
         nextx++;
         pad_x++;
     }
+
     nexty = (int)(cutneigh * bininvy);
     while (nexty * binsizey < FACTOR * cutneigh) {
         nexty++;
         pad_y++;
-    } 
+    }
+
     nextz = (int)(cutneigh * bininvz);
     while (nextz * binsizez < FACTOR * cutneigh) {
         nextz++;
-        pad_z++; 
-    } 
+        pad_z++;
+    }
 
     mbinx = MAX(1, nbinx + 4 * pad_x);
     mbiny = MAX(1, nbiny + 4 * pad_y);
@@ -236,7 +240,7 @@ void setupNeighbor(Parameter* param)
                     int jbin = k * mbiny * mbinx + j * mbinx + i;
                     if (ibin > jbin && half_stencil) continue;
                     stencil[nstencil++] = jbin;
-                    //stencil[nstencil++] = k * mbiny * mbinx + j * mbinx + i;
+                    // stencil[nstencil++] = k * mbiny * mbinx + j * mbinx + i;
                 }
             }
         }
@@ -253,8 +257,8 @@ void setupNeighbor(Parameter* param)
     bins = (int*)malloc(mbins * atoms_per_bin * sizeof(int));
 }
 
-void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
-{
+void buildNeighborCPU(Atom* atom, Neighbor* neighbor) {
+    DEBUG_MESSAGE("buildNeighborCPU begin\n");
     int nall = atom->Nlocal + atom->Nghost;
 
     /* extend atom arrays if necessary */
@@ -263,7 +267,7 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
         if (neighbor->numneigh) free(neighbor->numneigh);
         if (neighbor->neighbors) free(neighbor->neighbors);
         neighbor->numneigh  = (int*)malloc(nmax * sizeof(int));
-        neighbor->neighbors = (int*)malloc(nmax * neighbor->maxneighs * sizeof(int*));
+        neighbor->neighbors = (int*)malloc(nmax * neighbor->maxneighs * sizeof(int));
     }
 
     /* bin local & ghost atoms */
@@ -273,10 +277,10 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
     /* loop over each atom, storing neighbors */
     while (resize) {
         int new_maxneighs = neighbor->maxneighs;
-        resize            = 0;
+        int resize_local   = 0;
 
+#pragma omp parallel for schedule(runtime) reduction(max : new_maxneighs) reduction(| : resize_local)
         for (int i = 0; i < atom->Nlocal; i++) {
-            int* neighptr = &(neighbor->neighbors[i * neighbor->maxneighs]);
             int n         = 0;
             MD_FLOAT xtmp = atom_x(i);
             MD_FLOAT ytmp = atom_y(i);
@@ -294,8 +298,7 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
                     if (i == j) continue;
                     if (neighbor->half_neigh && j < i) continue;
                     if (half_stencil && ibin == jbin && skipNeigh(atom, i, j)) continue;
-                    //if ((j == i) || (neighbor->half_neigh && (j < i))) continue;
-                
+
                     MD_FLOAT delx = xtmp - atom_x(j);
                     MD_FLOAT dely = ytmp - atom_y(j);
                     MD_FLOAT delz = ztmp - atom_z(j);
@@ -309,20 +312,22 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
                     const MD_FLOAT cutoff = cutneighsq;
 #endif
                     if (rsq <= cutoff) {
-                        neighptr[n++] = j;
+                        neighs(neighbor->neighbors, i, n, atom->Nlocal, neighbor->maxneighs) = j;
+                        n++;
                     }
                 }
             }
 
             neighbor->numneigh[i] = n;
             if (n >= neighbor->maxneighs) {
-                resize = 1;
-
-                if (n >= new_maxneighs) {
+                resize_local = 1;
+                if (n > new_maxneighs) {
                     new_maxneighs = n;
                 }
             }
         }
+
+        resize = resize_local;
 
         if (resize) {
             printf("RESIZE %d, PROC %d\n", neighbor->maxneighs, me);
@@ -332,12 +337,16 @@ void buildNeighborCPU(Atom* atom, Neighbor* neighbor)
                 atom->Nmax * neighbor->maxneighs * sizeof(int));
         }
     }
-    if (method == eightShell) neighborGhost(atom, neighbor);
+
+    if (method == eightShell) {
+        neighborGhost(atom, neighbor);
+    }
+
+    DEBUG_MESSAGE("buildNeighborCPU end\n");
 }
 
 /* internal subroutines */
-MD_FLOAT bindist(int i, int j, int k)
-{
+MD_FLOAT bindist(int i, int j, int k) {
     MD_FLOAT delx, dely, delz;
 
     if (i > 0) {
@@ -367,8 +376,7 @@ MD_FLOAT bindist(int i, int j, int k)
     return (delx * delx + dely * dely + delz * delz);
 }
 
-int coord2bin(MD_FLOAT xin, MD_FLOAT yin, MD_FLOAT zin)
-{
+int coord2bin(MD_FLOAT xin, MD_FLOAT yin, MD_FLOAT zin) {
     int ix, iy, iz;
     MD_FLOAT eps = 1e-9;
     MD_FLOAT xlo = 0.0;
@@ -412,8 +420,9 @@ int coord2bin(MD_FLOAT xin, MD_FLOAT yin, MD_FLOAT zin)
     */
 }
 
-void binatoms(Atom* atom)
-{
+void binatoms(Atom* atom) {
+    DEBUG_MESSAGE("binatoms begin\n");
+
     int nall   = atom->Nlocal + atom->Nghost;
     int resize = 1;
 
@@ -441,10 +450,13 @@ void binatoms(Atom* atom)
             bins = (int*)malloc(mbins * atoms_per_bin * sizeof(int));
         }
     }
+
+    DEBUG_MESSAGE("binatoms end\n");
 }
 
-void sortAtom(Atom* atom)
-{
+void sortAtom(Atom* atom) {
+    DEBUG_MESSAGE("sortAtom begin\n");
+
     binatoms(atom);
     int Nmax    = atom->Nmax;
     int* binpos = bincount;
@@ -453,7 +465,7 @@ void sortAtom(Atom* atom)
         binpos[i] += binpos[i - 1];
     }
 
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
     MD_FLOAT* new_x  = (MD_FLOAT*)malloc(Nmax * sizeof(MD_FLOAT) * 3);
     MD_FLOAT* new_vx = (MD_FLOAT*)malloc(Nmax * sizeof(MD_FLOAT) * 3);
 #else
@@ -477,7 +489,7 @@ void sortAtom(Atom* atom)
         for (int k = 0; k < count; k++) {
             int new_i = start + k;
             int old_i = bins[mybin * atoms_per_bin + k];
-#ifdef AOS
+#ifdef ATOM_POSITION_AOS
             new_x[new_i * 3 + 0]  = old_x[old_i * 3 + 0];
             new_x[new_i * 3 + 1]  = old_x[old_i * 3 + 1];
             new_x[new_i * 3 + 2]  = old_x[old_i * 3 + 2];
@@ -499,7 +511,7 @@ void sortAtom(Atom* atom)
     free(atom->vx);
     atom->x  = new_x;
     atom->vx = new_vx;
-#ifndef AOS
+#ifndef ATOM_POSITION_AOS
     free(atom->y);
     free(atom->z);
     free(atom->vy);
@@ -509,13 +521,14 @@ void sortAtom(Atom* atom)
     atom->vy = new_vy;
     atom->vz = new_vz;
 #endif
+
+    DEBUG_MESSAGE("sortAtom end\n");
 }
 
 /* internal subroutines
 Added with MPI*/
 
-static int ghostZone(Atom* atom, int i)
-{
+static int ghostZone(Atom* atom, int i) {
     if (i < atom->Nlocal) return 1;
     else if (method == halfShell)
         return halfZone(atom, i);
@@ -525,8 +538,7 @@ static int ghostZone(Atom* atom, int i)
         return 0;
 }
 
-static int eightZone(Atom* atom, int i)
-{
+static int eightZone(Atom* atom, int i) {
     // Mapping: 0->0, 1->1, 2->2, 3->6, 4->3, 5->5, 6->4, 7->7
     int zoneMapping[] = { 0, 1, 2, 6, 3, 5, 4, 7 };
     MD_FLOAT* hi      = atom->mybox.hi;
@@ -535,17 +547,19 @@ static int eightZone(Atom* atom, int i)
     if (BigOrEqual(atom_x(i), hi[0])) {
         zone += 1;
     }
+
     if (BigOrEqual(atom_y(i), hi[1])) {
         zone += 2;
     }
+
     if (BigOrEqual(atom_z(i), hi[2])) {
         zone += 4;
     }
+
     return zoneMapping[zone];
 }
 
-static int halfZone(Atom* atom, int i)
-{
+static int halfZone(Atom* atom, int i) {
     MD_FLOAT* hi = atom->mybox.hi;
     MD_FLOAT* lo = atom->mybox.lo;
 
@@ -560,8 +574,9 @@ static int halfZone(Atom* atom, int i)
     }
 }
 
-static void neighborGhost(Atom* atom, Neighbor* neighbor)
-{
+static void neighborGhost(Atom* atom, Neighbor* neighbor) {
+    DEBUG_MESSAGE("neighborGhost begin\n");
+
     int Nshell = 0;
     int Nlocal = atom->Nlocal;
     int Nghost = atom->Nghost;
@@ -595,7 +610,6 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor)
     while (resize) {
         resize = 0;
         for (int i = 0; i < Nshell; i++) {
-            int* neighshell = &(neighbor->neighshell[i * neighbor->maxneighs]);
             int n           = 0;
             int iatom       = neighbor->listshell[i];
             int izone       = ghostZone(atom, iatom);
@@ -604,7 +618,7 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor)
             MD_FLOAT ztmp   = atom_z(iatom);
             int ibin        = coord2bin(xtmp, ytmp, ztmp);
 
-#ifdef EXPLICIT_TYPES
+#ifndef ONE_ATOM_TYPE
             int type_i = atom->type[iatom];
 #endif
 
@@ -626,7 +640,7 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor)
                     MD_FLOAT delz = ztmp - atom_z(jatom);
                     MD_FLOAT rsq  = delx * delx + dely * dely + delz * delz;
 
-#ifdef EXPLICIT_TYPES
+#ifndef ONE_ATOM_TYPE
                     int type_j = atom->type[jatom];
                     const MD_FLOAT cutoff =
                         atom->cutneighsq[type_i * atom->ntypes + type_j];
@@ -634,7 +648,8 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor)
                     const MD_FLOAT cutoff = cutneighsq;
 #endif
                     if (rsq <= cutoff) {
-                        neighshell[n++] = jatom;
+                        neighs(neighbor->neighshell, i, n, Nshell, neighbor->maxneighs) = jatom;
+                        n++;
                     }
                 }
             }
@@ -653,11 +668,12 @@ static void neighborGhost(Atom* atom, Neighbor* neighbor)
                 Nshell * neighbor->maxneighs * sizeof(int));
         }
     }
+
     free(listzone);
+    DEBUG_MESSAGE("neighborGhost end\n");
 }
 
-static inline int skipNeigh(Atom* atom, int i, int j)
-{
+static inline int skipNeigh(Atom* atom, int i, int j) {
     if (i > j && j < atom->Nlocal) {
         return 1;
     } else if (atom_z(i) > atom_z(j) && j >= atom->Nlocal) {

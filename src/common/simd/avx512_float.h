@@ -180,8 +180,49 @@ static inline MD_SIMD_INT simd_i32_load(const int* m)
     return _mm512_load_si512((const MD_SIMD_INT*)m);
 }
 
+static inline void simd_i32_store(int* m, MD_SIMD_INT a)
+{
+    _mm512_store_si512((MD_SIMD_INT*)m, a);
+}
+
 static inline MD_SIMD_FLOAT simd_real_gather(
     MD_SIMD_INT vidx, MD_FLOAT* base, const int scale)
 {
-    return _mm512_i32gather_ps(vidx, base, scale);
+    if (scale == 1) {
+        return _mm512_i32gather_ps(vidx, base, 1);
+    } else if (scale == 2) {
+        return _mm512_i32gather_ps(vidx, base, 2);
+    } else if (scale == 4) {
+        return _mm512_i32gather_ps(vidx, base, 4);
+    } else {
+        return _mm512_i32gather_ps(vidx, base, 8);
+    }
+}
+
+static inline MD_SIMD_INT simd_i32_gather(
+    MD_SIMD_INT vidx, int* base, const int scale)
+{
+    if (scale == 1) {
+        return _mm512_i32gather_epi32(vidx, base, 1);
+    } else if (scale == 2) {
+        return _mm512_i32gather_epi32(vidx, base, 2);
+    } else if (scale == 4) {
+        return _mm512_i32gather_epi32(vidx, base, 4);
+    } else {
+        return _mm512_i32gather_epi32(vidx, base, 8);
+    }
+}
+static inline void simd_real_masked_scatter_sub(
+    MD_FLOAT* base, MD_SIMD_INT vidx, MD_SIMD_FLOAT v, MD_SIMD_MASK mask)
+{
+    MD_FLOAT vals[16] __attribute__((aligned(64)));
+    int idx[16] __attribute__((aligned(64)));
+    simd_real_store(vals, v);
+    simd_i32_store(idx, vidx);
+    for (int i = 0; i < 16; i++) {
+        if ((mask >> i) & 1) {
+            _Pragma("omp atomic")
+            base[idx[i]] -= vals[i];
+        }
+    }
 }
